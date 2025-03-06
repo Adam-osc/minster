@@ -1,109 +1,71 @@
 from __future__ import annotations
 
-import os
-
+import gzip
+import warnings
 import numpy as np
 from dataclasses import dataclass, field
 
 import mappy as mp
+import pyfastx
 from typing import Optional, Iterable
 
-type RunDict = dict[str, "RunDataTracker"]
+from minknow_api.protocol_service import ProtocolService
+
+from multiprocessing import Value
+from pathlib import Path
+
+from minFQ.run_data_tracker import RunDataContainer
+
 type DescriptionDict = dict[str, str]
+type Bed6 = tuple[str, int, int, str, Optional[int], bool]
 
 
 @dataclass
-class Run:
-    _run_id: str
-    _is_barcoded: bool
-
-    _barcodes: list[str] = field(default_factory=list)
-
-    def get_run_id(self) -> str:
-        return self._run_id
-
-    def get_barcodes(self) -> list[str]:
-        return self._barcodes
-
-@dataclass
-class FastqFile:
-    _file_path: str
-    _file_size: int
-    _run_id: str
-
-    def get_file_path(self) -> str:
-        return self._file_path
-
-    def get_file_size(self) -> int:
-        return self._file_size
-
-    def get_run_id(self) -> str:
-        return self._run_id
-
-@dataclass
-class FastqFileContainer:
-    _fastq_files: dict[str, FastqFile] = field(default_factory=dict)
-
-    def add_fastq_file(self, fastq_file: FastqFile) -> None:
-        self._fastq_files[fastq_file.get_file_path()] = fastq_file
-
-    def get_fastq_file(self, file_name: str) -> Optional[FastqFile]:
-        return self._fastq_files.get(file_name)
-
-    def get_all_fastq_files(self) -> Iterable[FastqFile]:
-        return self._fastq_files.values()
-
-@dataclass
-class Read:
+class NanoporeRead:
     # NOTE: Think about all the IDs and whether they can be replaced with object references.
+    # for other classes as well
     _barcode_name: Optional[str]
     _channel: Optional[int]
     _fastq_file_path: str
     _quality_average: float
+    _read: pyfastx.Read
     _read_index: int
-    _read_id: str
     _run_id: str
     _sequence_length: int
     _start_time: str # convert to time
 
     def get_read_id(self) -> str:
-        return self._read_id
+        return self._read.name
 
     def get_fastq_file_path(self) -> str:
         return self._fastq_file_path
+
+    def get_sequence(self) -> str:
+        return self._read.seq
 
     def get_sequence_length(self) -> int:
         return self._sequence_length
 
     def get_is_pass(self) -> bool:
-        folders = os.path.split(self._fastq_file_path)
-        if "pass" in folders[0]:
-            return True
-        elif "fail" in folders[0]:
-            return False
+        all_parts = Path(self._fastq_file_path).parts
 
-        return self._quality_average >= 7
+        # https://nanoporetech.com/document/q-system-data-analysis
+        # {output_dir}/{experiment_id}/{sample_id}/{start_time}_{device_ID}_{flow_cell_id}_{short_protocol_run_id}/{ext}_{status}/{flow cell id}_{run id}_{batch_number}.{ext}
+        if len(all_parts) >= 6:
+            if all_parts[-2] == "fastq_pass":
+                return True
+            elif all_parts[-2] == "fastq_fail":
+                return False
 
-@dataclass
-class ReadContainer:
-    _reads: dict[str, Read] = field(default_factory=dict)
+        warnings.warn(self._fastq_file_path + " does not comply with the minKNOW specification.")
+        return False
 
-    def add_read(self, read: Read) -> None:
-        self._reads[read.get_read_id()] = read
-
-    def get_read(self, read_id: str) -> Optional[Read]:
-        return self._reads.get(read_id)
-
-    def get_all_reads(self) -> Iterable[Read]:
-        return self._reads.values()
-
-# NOTE: since the rest of the code was refactored this can possibly go?
+# NOTE: since the rest of the code was refactored this can possibly be simplified?
 @dataclass
 class ReadBuilder:
     _fastq_file_path: str
-    _quality: list[int]
+    _read: pyfastx.Read
     _read_index: int
-    _read_id: str
     _run_id: str
     _start_time: str # NOTE: ditto
 
@@ -122,97 +84,195 @@ class ReadBuilder:
         self._barcode_name = barcode_name
         return self
 
-    def get_result(self) -> Read:
+    def get_result(self) -> NanoporeRead:
         # NOTE: should average_quality really be a float?
-        quality_average = round(ReadBuilder.mean_qscore(self._quality), 2)
+        qual = self._read.quali
 
-        return Read(self._barcode_name,
-                    self._channel,
-                    self._fastq_file_path,
-                    quality_average,
-                    self._read_index,
-                    self._read_id,
-                    self._run_id,
-                    len(self._quality),
-                    self._start_time)
+        return NanoporeRead(self._barcode_name,
+                            self._channel,
+                            self._fastq_file_path,
+                            round(ReadBuilder.mean_qscore(qual), 2),
+                            self._read,
+                            self._read_index,
+                            self._run_id,
+                            len(qual),
+                            self._start_time)
 
 @dataclass
 class ReadDirector:
-    _description_dict: DescriptionDict
+    _read: pyfastx.Read
+    _fastq_file_path: str
 
-    def construct_read(self,
-                       read_id: str,
-                       fastq_file_path: str,
-                       quality: list[int]) -> Read:
-        run_id = self._description_dict["run_id"]
+    @staticmethod
+    def _parse_fastq_description(description: str) -> DescriptionDict:
+        recognized_keys: dict[str, str] = {
+            "runid": "run_id"
+        }
 
-        read_builder = ReadBuilder(fastq_file_path,
-                                   quality,
-                                   int(self._description_dict["read"]),
-                                   read_id,
-                                   run_id,
-                                   self._description_dict["start_time"]) # parse to time
+        description_dict: DescriptionDict = dict()
+        descriptors = description.split(" ")
 
-        if "channel" in self._description_dict:
-            read_builder.set_channel(int(self._description_dict["channel"]))
-        if "barcode" in self._description_dict:
-            read_builder.set_barcode_name(self._description_dict["barcode"].replace(" ", "_"))
+        for item in descriptors:
+            if "=" in item:
+                bits = item.split("=")
+                description_dict[recognized_keys.get(bits[0], bits[0])] = bits[1]
+        return description_dict
+
+    def construct_read(self) -> NanoporeRead:
+        description_dict = ReadDirector._parse_fastq_description(self._read.description)
+        read_builder = ReadBuilder(self._fastq_file_path,
+                                   self._read,
+                                   int(description_dict["read"]),
+                                   description_dict["run_id"],
+                                   description_dict["start_time"]) # parse to time
+
+        if "channel" in description_dict:
+            read_builder.set_channel(int(description_dict["channel"]))
+        if "barcode" in description_dict:
+            read_builder.set_barcode_name(description_dict["barcode"].replace(" ", "_"))
 
         return read_builder.get_result()
 
-@dataclass
 class TargetRegion:
-    _file_path: str
-    _region_length: int
+    _sequence: pyfastx.Sequence
+    _chrom: str
+    _region_start: int
+    _region_end: int
+    _reverse_strand: bool
 
-    def __init__(self, file_path: str, region_length: int):
-        self._file_path = file_path
-        self._region_length = region_length
+    def __init__(self, sequence: pyfastx.Sequence, target_region: Bed6):
+        self._sequence = sequence
 
-    def get_file_path(self) -> str:
-        return self._file_path
+        (self._chrom,
+         self._region_start,
+         self._region_end,
+         _,
+         _,
+         self._reverse_strand) = target_region
 
     def get_region_length(self) -> int:
-        return self._region_length
+        return self._region_end - self._region_start
+
+    def get_sequence(self) -> str:
+        seq = self._sequence[self._chrom][self._region_start:self._region_end]
+        return seq.reverse if self._reverse_strand else seq
 
 class AlignmentStats:
     _target_region: TargetRegion
-
     _aligner: mp.Aligner
-    _total_aligned_length: int
-    _read_count: int
+    _total_aligned_length: Value[int]
+    _read_count: Value[int]
 
-    def __init__(self, file_path: str, region_length: int):
-        # NOTE: comparing assigning a object versus creating an object
+    def __init__(self, sequence: pyfastx.Sequence, target_region: Bed6):
+        # NOTE: comparing assigning an object versus creating an object
         # especially in container classes
-        self._target_region = TargetRegion(file_path, region_length)
-        self._aligner = mp.Aligner(file_path, region_length)
+        self._target_region = TargetRegion(sequence, target_region)
+        # NOTE: think about writing files and then using these to save memory
+        self._aligner = mp.Aligner(seq=self._target_region.get_sequence(), preset="map-ont")
+        self._total_aligned_length = Value('i', 0)
+        self._read_count = Value('i', 0)
 
-        self._total_aligned_length = 0
-        self._read_count = 0
+    def update_stats(self, read: NanoporeRead) -> None:
+        seq = read.get_sequence()
 
-    def update_coverage(self, fastq_file_path: str) -> None:
-        for _, seq, _ in mp.fastx_read(fastq_file_path):
-            if AlignmentStats.is_high_quality_mapping(self._aligner.map(seq)):
-                # NOTE: if we first create a database object get the length from it
-                self._total_aligned_length += len(seq)
-                self._read_count += 1
+        if AlignmentStats.is_high_quality_mapping(self._aligner.map(seq)):
+            with self._total_aligned_length.get_lock():
+                self._total_aligned_length.value += len(seq)
+            with self._read_count.get_lock():
+                self._read_count.value += 1
 
+    # NOTE: is the name correct?
     def get_mean_coverage(self) -> float:
-        return round(self._total_aligned_length / self._target_region.get_region_length(), 2)
+        return round(self._total_aligned_length.value / self._target_region.get_region_length(), 2)
 
+    # NOTE: ditto
     def get_mean_read_length(self) -> float:
-        return round(self._total_aligned_length / self._read_count, 2)
+        read_count = self._read_count.value
+        return round(self._total_aligned_length.value / self._read_count.value, 2) if read_count > 0 else 0
 
-    # NOTE: bioinfo proof why this works
     @staticmethod
     def is_high_quality_mapping(hits: Iterable[mp.Alignment]) -> bool:
-        filtered_hits = [hit for hit in hits if hit.is_primary and hit.mapq > 20]
-        return len(filtered_hits) >= 2
+        for hit in hits:
+            if hit.is_primary and hit.mapq >= 20:
+                return True
+
+        return False
 
 @dataclass
 class AlignmentStatsContainer:
-    _alignment_stats: dict[str, AlignmentStats]
+    # NOTE: think about changing the data type to a set
+    _alignment_stats_plural: list[AlignmentStats] = field(default_factory=list)
 
     def add_alignment_stats(self, alignment_stats: AlignmentStats) -> None:
-        self._alignment_stats[""] = alignment_stats
+        self._alignment_stats_plural.append(alignment_stats)
+
+    def get_all_alignment_stats(self) -> Iterable[AlignmentStats]:
+        return self._alignment_stats_plural
+
+    def update_all_alignment_stats(self, batch: Iterable[NanoporeRead]) -> None:
+        for read in batch:
+            for alignment_stats in self._alignment_stats_plural:
+                alignment_stats.update_stats(read)
+
+class ExperimentManagerBuilder:
+    _regions_path: str
+    _regions_fasta: pyfastx.Fasta
+    _target_regions: set[Bed6]
+    _protocol: Optional[ProtocolService]
+    _alignment_stats_container: AlignmentStatsContainer
+
+    def __init__(self, regions_path: str):
+        self._regions_path = regions_path
+        self._regions_fasta = pyfastx.Fasta(regions_path)
+        self._alignment_stats_container = AlignmentStatsContainer()
+
+    def set_protocol(self, protocol: ProtocolService) -> ExperimentManagerBuilder:
+        self._protocol = protocol
+        return self
+
+    def add_target_region(self, target_region: Bed6) -> ExperimentManagerBuilder:
+        self._target_regions.add(target_region)
+        return self
+
+    def get_result(self) -> "ExperimentManager":
+        for target_region  in self._target_regions:
+            self._alignment_stats_container.add_alignment_stats(
+                AlignmentStats(self._regions_fasta, target_region)
+            )
+
+        return ExperimentManager(self._protocol, self._alignment_stats_container)
+
+# NOTE: verify single responsibility principle
+class ExperimentManager:
+    _protocol: ProtocolService
+    _alignment_stats_container: AlignmentStatsContainer
+    _runs_being_monitored: RunDataContainer
+
+    def __init__(self, protocol: ProtocolService, alignment_stats_container: AlignmentStatsContainer):
+        self._protocol = protocol
+        self._alignment_stats_container = alignment_stats_container
+        self._runs_being_monitored = RunDataContainer()
+
+    @staticmethod
+    def _get_run_id(fastq: str) -> str:
+        handle = gzip.open(fastq, "rt") if ".gz" in fastq else open(fastq, "rt")
+        with handle as file:
+            line = file.readline()
+            for _ in line.split():
+                if not _.startswith("runid"):
+                    break
+
+                run_id = _.split("=")[1]
+                return run_id
+
+        raise RuntimeError(fastq + " is not a fastq file created by minKNOW.")
+
+    def get_watch_dir(self) -> str:
+        return self._protocol.get_run_info().output_path
+
+    def parse_fastq_file(self, fastq_path: str) -> None:
+        run_id = ExperimentManager._get_run_id(fastq_path)
+
+        for record in pyfastx.Fastq(fastq_path):
+            run_data = self._runs_being_monitored.get_run_collection(run_id)
+            run_data.add_read(ReadDirector(record, fastq_path).construct_read())
