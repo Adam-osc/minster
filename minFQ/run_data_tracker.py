@@ -2,15 +2,12 @@
 A class to handle the collection of run statistics and information 
 from fastq files.
 """
-import logging
-
-from minFQ.my_types import NanoporeRead, AlignmentStatsContainer
-
-from dataclasses import dataclass
-from collections import deque
 import threading
+from collections import deque
+from dataclasses import dataclass
 
-log = logging.getLogger(__name__)
+from minFQ.alignment_stats import AlignmentStatsContainer
+from minFQ.nanopore_read import NanoporeRead
 
 
 class ReadQueue:
@@ -45,8 +42,6 @@ class ReadQueue:
                 self._condition.notify()
 
     def _process_batch(self) -> None:
-        log.debug("Processing thread started.")
-
         while True:
             with self._condition:
                 self._condition.wait()
@@ -72,8 +67,6 @@ class RunDataTracker:
     _read_queue: ReadQueue
 
     def __init__(self, read_queue: ReadQueue):
-        log.debug("Initialising RunDataTracker")
-
         self._read_queue = read_queue
 
     @staticmethod

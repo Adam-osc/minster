@@ -1,15 +1,11 @@
 """
 File Routines for handling fastq files and monitoring locations. Built on watchdog.
 """
-import logging
 import time
 
 from watchdog.events import FileSystemEventHandler
 
-from minFQ.my_types import ExperimentManager
-
-log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
+from minFQ.experiment_manager import ExperimentManager
 
 
 class FastqHandler(FileSystemEventHandler):
@@ -20,8 +16,6 @@ class FastqHandler(FileSystemEventHandler):
 
     def on_created(self, event):
          # This will add a file which is added to the watchfolder to the creates and the info file.
-         log.debug("Processing created file {}".format(event.src_path))
-
          if (
              event.src_path.endswith(".fastq")
              or event.src_path.endswith(".fastq.gz")
@@ -34,8 +28,6 @@ class FastqHandler(FileSystemEventHandler):
 
     # NOTE: is on_closed event enough or do we need an on_modified event as well?
     def on_closed(self, event):
-        log.debug("Processing closed file {}".format(event.src_path))
-
         if (
             event.src_path.endswith(".fastq")
             or event.src_path.endswith(".fastq.gz")

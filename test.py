@@ -1,27 +1,24 @@
-import sys, logging
-
-from minFQ.fastq_handler import FastqHandler
-from minFQ.my_types import ExperimentManager, ExperimentManagerBuilder
-
-from watchdog.observers.polling import PollingObserver as Observer
-
-from minknow_api import Connection
-from minknow_api.manager import Manager
-from minknow_api.protocol_pb2 import ProtocolState
-from minknow_api.protocol_pb2 import AnalysisWorkflowInfo
-from minknow_api.protocol_service import ProtocolService
-
+import sys
 from typing import Optional
 
-logging.basicConfig(
-    format="%(asctime)s %(module)s:%(levelname)s:%(thread)d:%(message)s",
-    filename="minFQ.log",
-    filemode="w",
-    level=logging.INFO,
-)
+import numpy as np
+from minknow_api import Connection
+from minknow_api.acquisition_pb2 import AcquisitionState
+from minknow_api.manager import Manager
+# from minknow_api.protocol_pb2 import ProtocolState
+# from minknow_api.protocol_pb2 import AnalysisWorkflowInfo
+from minknow_api.protocol_service import ProtocolService
+from pybasecall_client_lib.pyclient import PyBasecallClient
+from watchdog.observers.polling import PollingObserver as Observer
 
-log = logging.getLogger()
-log.setLevel(logging.DEBUG)
+from minFQ.experiment_manager import ExperimentManager, ExperimentManagerBuilder
+from minFQ.fastq_handler import FastqHandler
+
+
+ACQUISITION_ACTIVE_STATES = {
+    AcquisitionState.ACQUISITION_RUNNING,
+    AcquisitionState.ACQUISITION_STARTING
+}
 
 
 def get_current_protocol(device_name: str) -> Optional[ProtocolService]:
@@ -32,20 +29,13 @@ def get_current_protocol(device_name: str) -> Optional[ProtocolService]:
         if position.description.name == device_name:
             position_connection = position.connect()
             break
-
     if position_connection is None:
         return None
-
-    if position_connection.protocol.get_run_info().state == AnalysisWorkflowInfo.Status.RUNNING:
+    if position_connection.acquisition.get_acquisition_info().state in ACQUISITION_ACTIVE_STATES :
         return position_connection.protocol
 
-    for activity in position_connection.instance.stream_instance_activity():
-        if (len(activity.protocol_run_info.ListFields()) > 0 and
-                activity.protocol_run_info.state in [
-                    ProtocolState.PROTOCOL_RUNNING,
-                    ProtocolState.PROTOCOL_WAITING_FOR_TEMPERATURE,
-                    ProtocolState.PROTOCOL_WAITING_FOR_ACQUISITION
-            ]):
+    for acquisition_status in position_connection.acquisition.watch_current_acquisition_run():
+        if acquisition_status.state in ACQUISITION_ACTIVE_STATES:
             return position_connection.protocol
 
     return None
@@ -80,8 +70,8 @@ def start_minknow_and_basecalled_monitoring(
 
     observer = Observer()
     observer.schedule(event_handler,
-                          path=exp_manager.get_watch_dir(),
-                          recursive=True)
+                      path=exp_manager.get_watch_dir(),
+                      recursive=True)
     observer.start()
 
     try:
@@ -95,7 +85,19 @@ def start_minknow_and_basecalled_monitoring(
         sys.exit(0)
 
 
+def analysis(client):
+    while client.is_running:
+        for channel, read in client.get_read_chunks():
+            raw_data = np.fromstring(read.raw_data, client.signal_dtype)
+
+
 def main():
+    client = PyBasecallClient(
+        "127.0.0.1:5555",
+        "dna_r9.4.1_450bps_fast",
+    )
+    client.connect()
+
     start_minknow_and_basecalled_monitoring("MN34986")
 
 
