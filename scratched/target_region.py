@@ -6,14 +6,12 @@ type Bed6 = tuple[str, int, int, str, Optional[int], bool]
 
 
 class TargetRegion:
-    _sequence: pyfastx.Sequence
-    _chrom: str
-    _region_start: int
-    _region_end: int
-    _reverse_strand: bool
-
     def __init__(self, sequence: pyfastx.Sequence, target_region: Bed6):
-        self._sequence = sequence
+        self._sequence: pyfastx.Sequence = sequence
+        self._chrom: str
+        self._region_start: int
+        self._region_end: int
+        self._region_strand: bool
 
         (self._chrom,
          self._region_start,
