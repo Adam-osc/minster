@@ -20,7 +20,6 @@ class NanoporeRead:
     _read: pyfastx.Read
     _read_index: int
     _run_id: str
-    _sequence_length: int
     _start_time: str # convert to time
 
     def get_read_id(self) -> str:
@@ -33,7 +32,7 @@ class NanoporeRead:
         return self._read.seq
 
     def get_sequence_length(self) -> int:
-        return self._sequence_length
+        return len(self._read)
 
     def get_is_pass(self) -> bool:
         all_parts = Path(self._fastq_file_path).parts
@@ -62,7 +61,7 @@ class ReadBuilder:
     _barcode_name: Optional[str] = None
 
     @staticmethod
-    def mean_qscore(quality: list[int]) -> float:
+    def _mean_qscore(quality: list[int]) -> float:
         return -10 * np.log10(np.mean(10 ** (-1 * np.array(quality) / 10)))
 
     def set_channel(self, channel: int) -> "ReadBuilder":
@@ -74,17 +73,15 @@ class ReadBuilder:
         return self
 
     def get_result(self) -> NanoporeRead:
-        # NOTE: should average_quality really be a float?
         qual = self._read.quali
 
         return NanoporeRead(self._barcode_name,
                             self._channel,
                             self._fastq_file_path,
-                            round(ReadBuilder.mean_qscore(qual), 2),
+                            ReadBuilder._mean_qscore(qual),
                             self._read,
                             self._read_index,
                             self._run_id,
-                            len(qual),
                             self._start_time)
 
 @dataclass
@@ -103,8 +100,8 @@ class ReadDirector:
 
         for item in descriptors:
             if "=" in item:
-                bits = item.split("=")
-                description_dict[recognized_keys.get(bits[0], bits[0])] = bits[1]
+                parts = item.split("=")
+                description_dict[recognized_keys.get(parts[0], parts[0])] = parts[1]
         return description_dict
 
     def construct_read(self) -> NanoporeRead:
@@ -113,7 +110,7 @@ class ReadDirector:
                                    self._read,
                                    int(description_dict["read"]),
                                    description_dict["run_id"],
-                                   description_dict["start_time"]) # parse to time
+                                   description_dict["start_time"]) # NOTE: parse to time
 
         if "channel" in description_dict:
             read_builder.set_channel(int(description_dict["channel"]))
