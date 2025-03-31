@@ -2,6 +2,7 @@ import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+from datetime import datetime
 
 import numpy as np
 import pyfastx
@@ -11,8 +12,6 @@ type DescriptionDict = dict[str, str]
 
 @dataclass
 class NanoporeRead:
-    # NOTE: Think about all the IDs and whether they can be replaced with object references.
-    # for other classes as well
     _barcode_name: Optional[str]
     _channel: Optional[int]
     _fastq_file_path: str
@@ -20,7 +19,7 @@ class NanoporeRead:
     _read: pyfastx.Read
     _read_index: int
     _run_id: str
-    _start_time: str # convert to time
+    _start_time: datetime
 
     def get_read_id(self) -> str:
         return self._read.name
@@ -48,21 +47,24 @@ class NanoporeRead:
         warnings.warn(self._fastq_file_path + " does not comply with the minKNOW specification.")
         return False
 
-# NOTE: since the rest of the code was refactored this can possibly be simplified?
 @dataclass
 class ReadBuilder:
     _fastq_file_path: str
     _read: pyfastx.Read
-    _read_index: int
     _run_id: str
-    _start_time: str # NOTE: ditto
+    _start_time: datetime
 
+    _read_index: Optional[int] = None
     _channel: Optional[int] = None
     _barcode_name: Optional[str] = None
 
     @staticmethod
     def _mean_qscore(quality: list[int]) -> float:
         return -10 * np.log10(np.mean(10 ** (-1 * np.array(quality) / 10)))
+
+    def set_read_index(self, read_index: int) -> "ReadBuilder":
+        self._read_index = read_index
+        return self
 
     def set_channel(self, channel: int) -> "ReadBuilder":
         self._channel = channel
@@ -108,12 +110,20 @@ class ReadDirector:
         description_dict = ReadDirector._parse_fastq_description(self._read.description)
         read_builder = ReadBuilder(self._fastq_file_path,
                                    self._read,
-                                   int(description_dict["read"]),
                                    description_dict["run_id"],
-                                   description_dict["start_time"]) # NOTE: parse to time
+                                   datetime.fromisoformat(description_dict["start_time"]))
 
-        if "channel" in description_dict:
-            read_builder.set_channel(int(description_dict["channel"]))
+        if "read" in description_dict:
+            read_builder.set_channel(int(description_dict["read"]))
+
+        channel_query: Optional[str] = None
+        if "ch" in description_dict:
+            channel_query = "ch"
+        elif "channel" in description_dict:
+            channel_query = "channel"
+        if channel_query is not None:
+            read_builder.set_channel(int(description_dict[channel_query]))
+
         if "barcode" in description_dict:
             read_builder.set_barcode_name(description_dict["barcode"].replace(" ", "_"))
 

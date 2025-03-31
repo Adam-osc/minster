@@ -1,39 +1,41 @@
 import time
 import warnings
-from collections import namedtuple
-from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, NamedTuple
 
 import numpy as np
 from minknow_api.data_pb2 import GetLiveReadsResponse
 from pybasecall_client_lib.helper_functions import package_read
 from pybasecall_client_lib.pyclient import PyBasecallClient
 
-from minFQ.config import BasecallerSettings
+from minster.config import BasecallerSettings
+from read_until.base import CALIBRATION
 
 
-@dataclass
-class ReadChunk:
-    _read_id: str
-    _channel: int
-    _seq: str
+class ReadChunk(NamedTuple):
+    channel: int
+    read_id: str
+
+class ReadChunkWrap:
+    def __init__(self, channel: int, read_id: str, seq: str):
+        self._read_chunk: ReadChunk = ReadChunk(channel, read_id)
+        self._seq = seq
 
     @property
-    def read_id(self) -> str:
-        return self._read_id
-
-    @property
-    def channel(self) -> int:
-        return self._channel
+    def read_chunk(self) -> ReadChunk:
+        return self._read_chunk
 
     @property
     def seq(self) -> str:
         return self._seq
 
 class DoradoWrapper:
-    def __init__(self, basecaller_settings: BasecallerSettings, throttle: float):
+    def __init__(self,
+                 basecaller_settings: BasecallerSettings,
+                 sampling_rate: float,
+                 throttle: float):
         self._throttle: float = throttle
         self._max_attempts: int = basecaller_settings.max_attempts
+        self._sampling_rate: float = sampling_rate
         self._basecall_client: PyBasecallClient = PyBasecallClient(
             address=str(basecaller_settings.address),
             config=basecaller_settings.config,
@@ -43,15 +45,19 @@ class DoradoWrapper:
     def basecall(self,
                  reads: list[tuple[int, GetLiveReadsResponse.ReadData]],
                  signal_dtype: np.dtype[str],
-                 calibration_values: dict[int, namedtuple]) -> Iterable[ReadChunk]:
-        reads_to_basecall: list = []
+                 calibration_values: dict[int, CALIBRATION]) -> Iterable[ReadChunkWrap]:
+        channels: dict[str, int] = dict()
+        reads_to_basecall: list[dict] = []
+
         for channel, read in reads:
-            # NOTE: deal with weak type hints here
+            channels[read.id] = channel
             raw_data = np.frombuffer(read.raw_data, signal_dtype)
-            reads_to_basecall.append(package_read(read.id,
-                                                  raw_data,
-                                                  calibration_values[channel].offset,
-                                                  calibration_values[channel].scaling))
+            reads_to_basecall.append(package_read(read_id=read.id,
+                                                  raw_data=raw_data,
+                                                  daq_offset=calibration_values[channel].offset,
+                                                  daq_scaling=calibration_values[channel].scaling,
+                                                  sampling_rate=self._sampling_rate,
+                                                  start_time=read.start_sample))
 
         if len(reads_to_basecall) == 0:
             return None
@@ -64,6 +70,7 @@ class DoradoWrapper:
             time.sleep(self._throttle)
         if not passed:
             warnings.warn("Could not pass the reads to the basecaller.")
+            return None
 
         basecalled_reads = 0
         while len(reads_to_basecall) > basecalled_reads:
@@ -80,6 +87,6 @@ class DoradoWrapper:
                     read_id = result["metadata"]["read_id"]
                     basecalled_reads += 1
 
-                    yield ReadChunk(read_id,
-                                    result["metadata"]["channel"],
-                                    result["datasets"]["sequence"])
+                    yield ReadChunkWrap(channels[read_id],
+                                        read_id,
+                                        result["datasets"]["sequence"])

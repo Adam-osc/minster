@@ -1,12 +1,12 @@
 from pathlib import Path
-from typing import ClassVar
+from typing import Annotated, ClassVar
 
 from pydantic import BaseModel, AnyUrl, confloat, conint, constr, PositiveInt
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict, TomlConfigSettingsSource
 
-UnitFloat = confloat(gt=0, lt=1)
-UnprivPortInt = conint(ge=1024, le=65535)
-HostName = constr(max_length=253, pattern=r'^([a-z0-9-]+(\.[a-z0-9-]+)*)$')
+UnitFloat = Annotated[float, confloat(gt=0, lt=1)]
+UnprivPortInt = Annotated[int, conint(ge=1024, le=65535)]
+HostName = Annotated[str, constr(max_length=253, pattern=r'^([a-z0-9-]+(\.[a-z0-9-]+)*)$')]
 
 
 class BasecallerSettings(BaseModel):
@@ -36,6 +36,8 @@ class SequencerSettings(BaseModel):
 
 class ExperimentSettings(BaseSettings):
     reference_sequences: list[Path]
+    min_coverage: PositiveInt
+    min_read_length: PositiveInt
     sequencer: SequencerSettings
     read_until: ReadUntilSettings
     model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict()
@@ -44,7 +46,7 @@ class ExperimentSettings(BaseSettings):
     _toml_file: ClassVar[Path] = Path("./minster.toml")
 
     @classmethod
-    def set_toml_file(cls, toml_file: Path):
+    def set_toml_file(cls, toml_file: Path) -> None:
         if not cls._is_toml_set:
             cls._toml_file = toml_file
             cls._is_toml_set = True
