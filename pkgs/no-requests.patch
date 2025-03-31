@@ -1,0 +1,17 @@
+diff --git a/setup.py b/setup.py
+index 2d78487..2f05d83 100644
+--- a/setup.py
++++ b/setup.py
+@@ -125,9 +125,9 @@ class CustomBuildExt(build_ext.build_ext):
+         super().build_extensions()
+ 
+ #if not sys.platform.startswith('linux'):
+-prepare_sqlite3()
+-prepare_zlib()
+-prepare_indexed_gzip()
++#prepare_sqlite3()
++#prepare_zlib()
++#prepare_indexed_gzip()
+ 
+ extension = Extension('pyfastx',
+     sources = sources,
