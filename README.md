@@ -1,4 +1,6 @@
 # Minster
+- x86_64-linux, aarch64-linux, x86_64-darwin, aarch64-darwin are the only supported architectures.
+- The program was tested only on aarch64-darwin.
 
 **Nix Installation**  
 - Ensure that [Nix](https://nixos.org/download.html) is installed on your system. 
