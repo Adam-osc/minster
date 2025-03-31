@@ -23,8 +23,8 @@ let
   digests = {
     cp312 = {
       x86_64-linux = "sha256-0Cw02aNu4bHkhsvTqApsdR1fOeFvNNd78bZTcmUoKT0=";
-      aarch64-linux = "";
-      x86_64-darwin = "";
+      aarch64-linux = "sha256-d/LA/E3A/iDncYAOu+7tWrrBYA1zdsjHSl2m9u7YOkQ=";
+      x86_64-darwin = "sha256-raQd5HwiHRGSkQIt6vXLDFwW+8aVyKkAgavVWOqr0Pg=";
       aarch64-darwin = "sha256-m7co1smRU4HYgmmoqyKwAS1Yxp+h2FomN7gy01DMCCg=";
     };
   };
