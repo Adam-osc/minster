@@ -36,7 +36,6 @@ buildPythonPackage rec {
 
   patches = [ ./no-requests.patch ];
   preBuild = ''
-    NIX_LDFLAGS="$(pkg-config --libs sqlite3) -L${zran}/lib -lzran -lzran_file_util $NIX_LDFLAGS"
+    NIX_LDFLAGS="$(pkg-config --libs sqlite3) -L${zran}/lib -lzran $NIX_LDFLAGS"
   '';
 }
-  

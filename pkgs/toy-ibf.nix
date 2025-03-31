@@ -1,4 +1,6 @@
-{ fetchFromGitHub
+{ stdenv
+, darwin
+, fetchFromGitHub
 , buildPythonPackage
 , rustPlatform
 }:
@@ -19,6 +21,10 @@ buildPythonPackage rec {
     inherit src;
     hash = "sha256-VfqW5CXvJiN8CGlWR1MAIezmAGBMch8ljKzwxlzF3Sk=";
   };
+  buildInputs = (if stdenv.hostPlatform.isDarwin then
+                   [ darwin.libiconv ]
+                 else
+                   [  ]);
   nativeBuildInputs = with rustPlatform; [
     cargoSetupHook
     maturinBuildHook

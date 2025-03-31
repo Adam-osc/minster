@@ -1,5 +1,5 @@
 { stdenv
-, autoPatchelfHook
+, dynLibsPatcher
 , buildPythonPackage
 , fetchPypi
 # dependencies
@@ -25,7 +25,7 @@ let
       x86_64-linux = "sha256-0Cw02aNu4bHkhsvTqApsdR1fOeFvNNd78bZTcmUoKT0=";
       aarch64-linux = "";
       x86_64-darwin = "";
-      aarch64-darwin = "";
+      aarch64-darwin = "sha256-m7co1smRU4HYgmmoqyKwAS1Yxp+h2FomN7gy01DMCCg=";
     };
   };
 in
@@ -43,7 +43,7 @@ buildPythonPackage rec {
     platform = platformTag;
   };
 
-  nativeBuildInputs = [ autoPatchelfHook ];
+  nativeBuildInputs = [ dynLibsPatcher ];
   buildInputs = [
     stdenv.cc.cc.lib
   ];

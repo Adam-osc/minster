@@ -44,7 +44,7 @@
           };
           ont_pybasecall_client_lib = import ./pkgs/ont-pybasecall-client-lib.nix {
             stdenv = pkgs.stdenv;
-            autoPatchelfHook = pkgs.autoPatchelfHook;
+            dynLibsPatcher = if pkgs.stdenv.hostPlatform.isLinux then pkgs.autoPatchelfHook else pkgs.fixDarwinDylibNames;
             buildPythonPackage = pythonPackages.buildPythonPackage;
             fetchPypi = pythonPackages.fetchPypi;
             numpy = pythonPackages.numpy;
@@ -60,6 +60,8 @@
             sqlite = pkgs.sqlite;
           };
           interleaved_bloom_filter = import ./pkgs/toy-ibf.nix {
+            stdenv = pkgs.stdenv;
+            darwin = if pkgs.stdenv.hostPlatform.isDarwin then pkgs.darwin else null;
             fetchFromGitHub = pkgs.fetchFromGitHub;
             buildPythonPackage = pythonPackages.buildPythonPackage;
             rustPlatform = pkgs.rustPlatform;
