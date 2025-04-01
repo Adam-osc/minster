@@ -26,3 +26,4 @@ python main.py --config /path/to/config.toml
 - An [example config](./example.toml) file with all the tweakable options in provided.
 
 3. Start a sequencing experiment in MinKNOW with live basecalling.
+- The read until client may fail to connect to the sequencer even if it is in the `acquisition running` state.
