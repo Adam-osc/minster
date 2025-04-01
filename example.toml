@@ -3,7 +3,7 @@ reference_sequences = [
     # "/Users/adam/thesis/realtime-seq/test-data/Homo_sapiens.GRCh38.dna.chromosome.1.fa"
 ]
 min_coverage = 7
-min_read_length = 20
+min_read_length = 1200
 
 [sequencer]
 host = "localhost"
