@@ -23,7 +23,7 @@ class ReadQueue:
 
     def quit(self) -> None:
         with self._condition:
-            self._queue.append(None)
+            self._queue.appendleft(None)
             self._condition.notify()
 
     def add_read(self, read: NanoporeRead) -> None:
@@ -60,11 +60,11 @@ class ReadQueue:
 
                     batch.append(read)
 
-            for seq_id in self._alignment_stats_container.update_all_alignment_stats(batch):
-                self._depletion_ibf.active_filter(seq_id)
-
             if breaking:
                 break
+
+            for seq_id in self._alignment_stats_container.update_all_alignment_stats(batch):
+                self._depletion_ibf.active_filter(seq_id)
 
 @dataclass
 class RunDataTracker:
@@ -94,5 +94,5 @@ class DataTrackerContainer:
             self._run_dict[run_id] = RunDataTracker(self._read_queue)
         return self._run_dict[run_id]
 
-    def stop_run(self) -> bool:
+    def stop_run_p(self) -> bool:
         return self._alignment_stats_container.are_all_covered()

@@ -41,6 +41,7 @@
             protobuf = pythonPackages.protobuf;
             packaging = pythonPackages.packaging;
             pyrfc3339 = pythonPackages.pyrfc3339;
+            version = "6.2.1";
           };
           ont_pybasecall_client_lib = import ./pkgs/ont-pybasecall-client-lib.nix {
             stdenv = pkgs.stdenv;
@@ -49,6 +50,7 @@
             fetchPypi = pythonPackages.fetchPypi;
             numpy = pythonPackages.numpy;
             pythonVersion = python.pythonVersion;
+            version = "7.6.8";
           };
           pyfastx = import ./pkgs/pyfastx.nix {
             buildPythonPackage = pythonPackages.buildPythonPackage;

@@ -35,7 +35,7 @@ class ExperimentManager:
         return self._protocol.get_run_info().output_path
 
     def parse_fastq_file(self, fastq_path: str) -> None:
-        if self._data_tracker_container.stop_run():
+        if self._data_tracker_container.stop_run_p():
             self._protocol.stop_protocol()
 
         run_id = ExperimentManager._get_run_id(fastq_path)

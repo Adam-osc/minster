@@ -8,16 +8,23 @@
 , protobuf
 , packaging
 , pyrfc3339
+# cross-cutting
+, version
 }:
 
+let
+  digests = {
+    "6.2.1" = "sha256-X++FcO7iNFk2b1Rrx6zMupAJeQOifCbAb1eVcxdYaus=";
+  };
+in
 buildPythonPackage rec {
   pname = "minknow_api";
-  version = "6.2.1";
+  inherit version;
   pyproject = true;
 
   src = fetchPypi {
     inherit pname version;
-    hash = "sha256-X++FcO7iNFk2b1Rrx6zMupAJeQOifCbAb1eVcxdYaus=";
+    hash = digests."${version}";
   };
 
   build-system = [

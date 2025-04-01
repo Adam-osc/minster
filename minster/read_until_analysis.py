@@ -45,7 +45,9 @@ class ReadUntilAnalysis:
                  sampling_rate: float,
                  depletion_ibf: IBFWrapper,
                  message_queue: Queue):
+        print("Initializing the Read Until Client")
         self._read_until_client: ReadUntilClient = ReadUntilClient(mk_host=read_until_settings.host, mk_port=read_until_settings.port, one_chunk=False) # NOTE: check one_check, etc. with readfish
+        print("Initializing the Basecaller")
         self._basecaller: DoradoWrapper = DoradoWrapper(read_until_settings.basecaller,
                                                         sampling_rate,
                                                         read_until_settings.throttle)
@@ -61,8 +63,6 @@ class ReadUntilAnalysis:
         self._read_until_client.reset()
 
     def analysis(self) -> None:
-        # NOTE: synchronization with self.run()
-        time.sleep(10)
         depletion_hits: dict[str, int] = defaultdict(int)
 
         while self._read_until_client.is_running:

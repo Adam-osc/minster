@@ -77,4 +77,7 @@ class AlignmentStatsContainer:
             for seq_id, alignment_stats in self._alignment_stats_plural.items():
                 if alignment_stats.update_stats(read):
                     yield seq_id
-                self._message_queue.put(f"{seq_id}\tmean coverage: {alignment_stats.get_mean_coverage()}\tmean read length: {alignment_stats.get_mean_read_length()}")
+
+        # NOTE: info printing
+        for seq_id, alignment_stats in self._alignment_stats_plural.items():
+            self._message_queue.put(f"{seq_id}\tmean coverage: {alignment_stats.get_mean_coverage()}\tmean read length: {alignment_stats.get_mean_read_length()}")

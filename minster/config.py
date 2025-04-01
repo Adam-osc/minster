@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Annotated, ClassVar
 
 from pydantic import BaseModel, AnyUrl, confloat, conint, constr, PositiveInt
-from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict, TomlConfigSettingsSource
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, TomlConfigSettingsSource
 
 UnitFloat = Annotated[float, confloat(gt=0, lt=1)]
 UnprivPortInt = Annotated[int, conint(ge=1024, le=65535)]
@@ -40,7 +40,6 @@ class ExperimentSettings(BaseSettings):
     min_read_length: PositiveInt
     sequencer: SequencerSettings
     read_until: ReadUntilSettings
-    model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict()
 
     _is_toml_set: ClassVar[bool] = False
     _toml_file: ClassVar[Path] = Path("./minster.toml")

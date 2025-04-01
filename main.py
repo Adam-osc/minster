@@ -2,6 +2,7 @@ import argparse
 import concurrent.futures
 import sys
 import threading
+import time
 from concurrent.futures import Future
 from pathlib import Path
 from queue import Queue
@@ -22,8 +23,7 @@ from minster.read_until_analysis import IBFWrapper, ReadUntilAnalysis
 from minster.run_data_tracker import ReadQueue
 
 ACQUISITION_ACTIVE_STATES = {
-    AcquisitionState.ACQUISITION_RUNNING,
-    AcquisitionState.ACQUISITION_STARTING
+    AcquisitionState.ACQUISITION_RUNNING
 }
 
 
@@ -77,8 +77,12 @@ def start_basecalled_monitoring(
                                     alignment_stats_container)
     event_handler = FastqHandler(exp_manager)
 
+    watch_dir = Path(exp_manager.get_watch_dir())
+    while not watch_dir.exists():
+        time.sleep(1)
+
     observer.schedule(event_handler,
-                      path=exp_manager.get_watch_dir(),
+                      path=str(watch_dir),
                       recursive=True)
     observer.start()
 
