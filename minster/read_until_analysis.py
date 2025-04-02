@@ -1,49 +1,20 @@
-import threading
 import time
 from collections import defaultdict
-from pathlib import Path
 from queue import Queue
 from timeit import default_timer as timer
 from typing import Iterable
 
-import pyfastx
-from interleaved_bloom_filter import InterleavedBloomFilter
-
-from minster.config import IBFSettings, ReadUntilSettings
+from minster.config import ReadUntilSettings
 from minster.dorado_wrapper import DoradoWrapper, ReadChunk, ReadChunkWrap
+from minster.classifiers.classifier import Classifier
 from read_until import ReadUntilClient
 
-
-class IBFWrapper:
-    def __init__(self, ibf_settings: IBFSettings, reference_files: list[Path]):
-        reference_sequences = [(str(path), ref_seq) for path in reference_files for ref_seq in pyfastx.Fasta(str(path))]
-
-        self._ibf: InterleavedBloomFilter = InterleavedBloomFilter(
-            max(len(ref_seq) for _, ref_seq in reference_sequences),
-            ibf_settings.fragment_length,
-            ibf_settings.k,
-            ibf_settings.k,
-            ibf_settings.hashes,
-            ibf_settings.error_rate,
-            ibf_settings.confidence)
-        self._lock: threading.Lock = threading.Lock()
-
-        for container_path, ref_seq in reference_sequences:
-            self._ibf.insert_sequence((container_path, ref_seq.name), ref_seq.seq)
-
-    def active_filter(self, sequence_id: tuple[str, str]) -> None:
-        with self._lock:
-            self._ibf.activate_filter(sequence_id)
-
-    def is_sequence_present(self, sequence: str) -> bool:
-        with self._lock:
-            return self._ibf.is_sequence_present(sequence)
 
 class ReadUntilAnalysis:
     def __init__(self,
                  read_until_settings: ReadUntilSettings,
                  sampling_rate: float,
-                 depletion_ibf: IBFWrapper,
+                 classifier: Classifier,
                  message_queue: Queue):
         print("Initializing the Read Until Client")
         self._read_until_client: ReadUntilClient = ReadUntilClient(mk_host=read_until_settings.host, mk_port=read_until_settings.port, one_chunk=False) # NOTE: check one_check, etc. with readfish
@@ -53,7 +24,7 @@ class ReadUntilAnalysis:
                                                         read_until_settings.throttle)
         self._depletion_chunks: int = read_until_settings.depletion_chunks
         self._throttle: float = read_until_settings.throttle
-        self._depletion_ibf: IBFWrapper = depletion_ibf
+        self._classifier: Classifier = classifier
         self._message_queue: Queue = message_queue
 
     def run(self) -> None:
@@ -76,14 +47,14 @@ class ReadUntilAnalysis:
 
             for chunk_wrap in basecalled_reads:
                 read_chunk = chunk_wrap.read_chunk
-                if self._depletion_ibf.is_sequence_present(chunk_wrap.seq):
-                    self._message_queue.put(f"{read_chunk.read_id}: was matched by the IBF.")
+                if self._classifier.is_sequence_present(chunk_wrap.seq):
+                    self._message_queue.put(f"{read_chunk.read_id}: was found positive by the classifier.")
                     depletion_hits[read_chunk.read_id] += 1
                     if depletion_hits[read_chunk.read_id] >= self._depletion_chunks:
                         depletion_hits.pop(read_chunk.read_id)
                         unblock_batch.append(read_chunk)
                 else:
-                    self._message_queue.put(f"{read_chunk.read_id}: is not present in the IBF.")
+                    self._message_queue.put(f"{read_chunk.read_id}: was found negative by the classifier.")
                     stop_receiving_batch.append(read_chunk)
 
             self._read_until_client.unblock_read_batch(unblock_batch)

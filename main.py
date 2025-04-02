@@ -15,12 +15,14 @@ from minknow_api.protocol_service import ProtocolService
 from watchdog.observers.polling import PollingObserver as Observer
 
 from minster.alignment_stats import AlignmentStatsContainer
+from minster.classifiers.classifier import Classifier
+from minster.classifiers.ibf_wrapper import IBFWrapper
 from minster.config import ExperimentSettings, SequencerSettings
 from minster.experiment_manager import ExperimentManager
 from minster.fastq_handler import FastqHandler
 from minster.printer import Printer
-from minster.read_until_analysis import IBFWrapper, ReadUntilAnalysis
-from minster.run_data_tracker import ReadQueue
+from minster.read_processor import ReadProcessor
+from minster.read_until_analysis import ReadUntilAnalysis
 
 ACQUISITION_ACTIVE_STATES = {
     AcquisitionState.ACQUISITION_RUNNING
@@ -50,7 +52,7 @@ def get_active_connection(sequencer_settings: SequencerSettings) -> Optional[Con
 def clean_threads(message_queue: Queue,
                   printer_thread: threading.Thread,
                   observer: Observer,
-                  read_queue: ReadQueue,
+                  read_processor: ReadProcessor,
                   read_until_analysis: ReadUntilAnalysis,
                   futures: dict[str, Future[None]]) -> None:
     message_queue.put("Shutting down all threads.")
@@ -58,7 +60,7 @@ def clean_threads(message_queue: Queue,
     printer_thread.join()
 
     observer.stop()
-    read_queue.quit()
+    read_processor.quit()
     read_until_analysis.reset()
 
     for name, future in futures.items():
@@ -69,11 +71,11 @@ def clean_threads(message_queue: Queue,
 def start_basecalled_monitoring(
         protocol_service: ProtocolService,
         observer: Observer,
-        read_queue: ReadQueue,
+        read_processor: ReadProcessor,
         alignment_stats_container: AlignmentStatsContainer
 ) -> None:
     exp_manager = ExperimentManager(protocol_service,
-                                    read_queue,
+                                    read_processor,
                                     alignment_stats_container)
     event_handler = FastqHandler(exp_manager)
 
@@ -124,8 +126,8 @@ def main() -> None:
 
     read_until_settings = experiment_settings.read_until
     print("Building a bloom filter for the reference sequences")
-    depletion_ibf = IBFWrapper(read_until_settings.interleaved_bloom_filter,
-                               experiment_settings.reference_sequences)
+    depletion_ibf: Classifier = IBFWrapper(read_until_settings.interleaved_bloom_filter,
+                                           experiment_settings.reference_sequences)
     read_until_analysis = ReadUntilAnalysis(read_until_settings,
                                             float(connection.device.get_sample_rate().sample_rate),
                                             depletion_ibf,
@@ -135,8 +137,8 @@ def main() -> None:
                                                         experiment_settings.min_read_length,
                                                         message_queue,
                                                         experiment_settings.reference_sequences)
-    read_queue = ReadQueue(depletion_ibf,
-                           alignment_stats_container)
+    read_processor = ReadProcessor(depletion_ibf,
+                               alignment_stats_container)
     read_until_analysis.run()
 
     observer = Observer()
@@ -144,11 +146,11 @@ def main() -> None:
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         futures: dict[str, Future[None]] = {
             "Analysis": executor.submit(read_until_analysis.analysis),
-            "ReadQueue": executor.submit(read_queue.process),
+            "ReadProcessor": executor.submit(read_processor.process),
             "BasecalledMonitoring": executor.submit(start_basecalled_monitoring,
                                                     protocol_service,
                                                     observer,
-                                                    read_queue,
+                                                    read_processor,
                                                     alignment_stats_container),
         }
 
@@ -163,10 +165,10 @@ def main() -> None:
                 if len(freshly_done) > 0:
                     done |= freshly_done
 
-                    clean_threads(message_queue, printer_thread, observer, read_queue, read_until_analysis, futures)
+                    clean_threads(message_queue, printer_thread, observer, read_processor, read_until_analysis, futures)
                     break
         except KeyboardInterrupt:
-            clean_threads(message_queue, printer_thread, observer, read_queue, read_until_analysis, futures)
+            clean_threads(message_queue, printer_thread, observer, read_processor, read_until_analysis, futures)
 
         for future in done:
             try:
