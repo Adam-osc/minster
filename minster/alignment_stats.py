@@ -29,7 +29,7 @@ class AlignmentStats:
                 self._read_count.value += 1
 
         return (self.get_mean_coverage() >= self._min_coverage and
-                    self.get_mean_read_length() >= self._min_read_length)
+                self.get_mean_read_length() >= self._min_read_length)
 
     def get_mean_coverage(self) -> float:
         return round(self._aligned_length.value / len(self._sequence), 2)
@@ -48,11 +48,13 @@ class AlignmentStats:
 
 
 class AlignmentStatsContainer:
-    def __init__(self,
-                 min_coverage: int,
-                 min_read_length: int,
-                 message_queue: Queue,
-                 reference_sequences: list[Path]):
+    def __init__(
+            self,
+            min_coverage: int,
+            min_read_length: int,
+            message_queue: Queue,
+            reference_sequences: list[Path]
+    ):
         self._min_coverage: int = min_coverage
         self._min_read_length: int = min_read_length
         self._alignment_stats_plural: dict[tuple[str, str], AlignmentStats] = dict()
@@ -61,9 +63,11 @@ class AlignmentStatsContainer:
 
         for reference_file in reference_sequences:
             for sequence in pyfastx.Fasta(str(reference_file)):
-                self._alignment_stats_plural[(str(reference_file), sequence.name)] = AlignmentStats(sequence,
-                                                                                                    self._min_coverage,
-                                                                                                    self._min_read_length)
+                self._alignment_stats_plural[(str(reference_file), sequence.name)] = AlignmentStats(
+                    sequence,
+                    self._min_coverage,
+                    self._min_read_length
+                )
                 self._coverage_map[(str(reference_file), sequence.name)] = False
 
     def get_all_alignment_stats(self) -> Iterable[AlignmentStats]:
@@ -80,4 +84,5 @@ class AlignmentStatsContainer:
 
         # NOTE: info printing
         for seq_id, alignment_stats in self._alignment_stats_plural.items():
-            self._message_queue.put(f"{seq_id}\tmean coverage: {alignment_stats.get_mean_coverage()}\tmean read length: {alignment_stats.get_mean_read_length()}")
+            self._message_queue.put(
+                f"{seq_id}\tmean coverage: {alignment_stats.get_mean_coverage()}\tmean read length: {alignment_stats.get_mean_read_length()}")

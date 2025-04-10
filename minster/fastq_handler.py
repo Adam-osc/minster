@@ -12,9 +12,9 @@ class FastqHandler(FileSystemEventHandler):
 
     def on_created(self, event: DirCreatedEvent | FileCreatedEvent) -> None:
         if (event.src_path.endswith(".fastq") or
-            event.src_path.endswith(".fastq.gz") or
-            event.src_path.endswith(".fq") or
-            event.src_path.endswith(".fq.gz")):
+                event.src_path.endswith(".fastq.gz") or
+                event.src_path.endswith(".fq") or
+                event.src_path.endswith(".fq.gz")):
             # NOTE: only for development purposes
             while True:
                 initial_size = os.path.getsize(event.src_path)

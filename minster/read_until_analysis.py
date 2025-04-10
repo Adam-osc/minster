@@ -11,17 +11,25 @@ from read_until import ReadUntilClient
 
 
 class ReadUntilAnalysis:
-    def __init__(self,
-                 read_until_settings: ReadUntilSettings,
-                 sampling_rate: float,
-                 classifier: Classifier,
-                 message_queue: Queue):
+    def __init__(
+            self,
+            read_until_settings: ReadUntilSettings,
+            sampling_rate: float,
+            classifier: Classifier,
+            message_queue: Queue
+    ):
         print("Initializing the Read Until Client")
-        self._read_until_client: ReadUntilClient = ReadUntilClient(mk_host=read_until_settings.host, mk_port=read_until_settings.port, one_chunk=False) # NOTE: check one_check, etc. with readfish
+        self._read_until_client: ReadUntilClient = ReadUntilClient(
+            mk_host=read_until_settings.host,
+            mk_port=read_until_settings.port,
+            one_chunk=False
+        )  # NOTE: check one_check, etc. with readfish
         print("Initializing the Basecaller")
-        self._basecaller: DoradoWrapper = DoradoWrapper(read_until_settings.basecaller,
-                                                        sampling_rate,
-                                                        read_until_settings.throttle)
+        self._basecaller: DoradoWrapper = DoradoWrapper(
+            read_until_settings.basecaller,
+            sampling_rate,
+            read_until_settings.throttle
+        )
         self._depletion_chunks: int = read_until_settings.depletion_chunks
         self._throttle: float = read_until_settings.throttle
         self._classifier: Classifier = classifier
@@ -41,9 +49,10 @@ class ReadUntilAnalysis:
             stop_receiving_batch: list[ReadChunk] = []
             unblock_batch: list[ReadChunk] = []
 
-            basecalled_reads: Iterable[ReadChunkWrap] = self._basecaller.basecall(self._read_until_client.get_read_chunks(self._read_until_client.channel_count, last=True),
-                                                                                  self._read_until_client.signal_dtype,
-                                                                                 self._read_until_client.calibration_values)
+            basecalled_reads: Iterable[ReadChunkWrap] = self._basecaller.basecall(
+                self._read_until_client.get_read_chunks(self._read_until_client.channel_count, last=True),
+                self._read_until_client.signal_dtype,
+                self._read_until_client.calibration_values)
 
             for chunk_wrap in basecalled_reads:
                 read_chunk = chunk_wrap.read_chunk

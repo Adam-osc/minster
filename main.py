@@ -39,7 +39,7 @@ def get_active_connection(sequencer_settings: SequencerSettings) -> Optional[Con
             break
     if position_connection is None:
         return None
-    if position_connection.acquisition.get_acquisition_info().state in ACQUISITION_ACTIVE_STATES :
+    if position_connection.acquisition.get_acquisition_info().state in ACQUISITION_ACTIVE_STATES:
         return position_connection
 
     for acquisition_status in position_connection.acquisition.watch_current_acquisition_run():
@@ -49,12 +49,14 @@ def get_active_connection(sequencer_settings: SequencerSettings) -> Optional[Con
     return None
 
 
-def clean_threads(message_queue: Queue,
-                  printer_thread: threading.Thread,
-                  observer: Observer,
-                  read_processor: ReadProcessor,
-                  read_until_analysis: ReadUntilAnalysis,
-                  futures: dict[str, Future[None]]) -> None:
+def clean_threads(
+        message_queue: Queue,
+        printer_thread: threading.Thread,
+        observer: Observer,
+        read_processor: ReadProcessor,
+        read_until_analysis: ReadUntilAnalysis,
+        futures: dict[str, Future[None]]
+) -> None:
     message_queue.put("Shutting down all threads.")
     message_queue.put(None)
     printer_thread.join()
@@ -74,18 +76,22 @@ def start_basecalled_monitoring(
         read_processor: ReadProcessor,
         alignment_stats_container: AlignmentStatsContainer
 ) -> None:
-    exp_manager = ExperimentManager(protocol_service,
-                                    read_processor,
-                                    alignment_stats_container)
+    exp_manager = ExperimentManager(
+        protocol_service,
+        read_processor,
+        alignment_stats_container
+    )
     event_handler = FastqHandler(exp_manager)
 
     watch_dir = Path(exp_manager.get_watch_dir())
     while not watch_dir.exists():
         time.sleep(1)
 
-    observer.schedule(event_handler,
-                      path=str(watch_dir),
-                      recursive=True)
+    observer.schedule(
+        event_handler,
+        path=str(watch_dir),
+        recursive=True
+    )
     observer.start()
 
     try:
@@ -126,19 +132,27 @@ def main() -> None:
 
     read_until_settings = experiment_settings.read_until
     print("Building a bloom filter for the reference sequences")
-    depletion_ibf: Classifier = IBFWrapper(read_until_settings.interleaved_bloom_filter,
-                                           experiment_settings.reference_sequences)
-    read_until_analysis = ReadUntilAnalysis(read_until_settings,
-                                            float(connection.device.get_sample_rate().sample_rate),
-                                            depletion_ibf,
-                                            message_queue)
+    depletion_ibf: Classifier = IBFWrapper(
+        read_until_settings.interleaved_bloom_filter,
+        experiment_settings.reference_sequences
+    )
+    read_until_analysis = ReadUntilAnalysis(
+        read_until_settings,
+        float(connection.device.get_sample_rate().sample_rate),
+        depletion_ibf,
+        message_queue
+    )
     print("Initializing aligner for the reference sequences")
-    alignment_stats_container = AlignmentStatsContainer(experiment_settings.min_coverage,
-                                                        experiment_settings.min_read_length,
-                                                        message_queue,
-                                                        experiment_settings.reference_sequences)
-    read_processor = ReadProcessor(depletion_ibf,
-                               alignment_stats_container)
+    alignment_stats_container = AlignmentStatsContainer(
+        experiment_settings.min_coverage,
+        experiment_settings.min_read_length,
+        message_queue,
+        experiment_settings.reference_sequences
+    )
+    read_processor = ReadProcessor(
+        depletion_ibf,
+        alignment_stats_container
+    )
     read_until_analysis.run()
 
     observer = Observer()
@@ -147,11 +161,13 @@ def main() -> None:
         futures: dict[str, Future[None]] = {
             "Analysis": executor.submit(read_until_analysis.analysis),
             "ReadProcessor": executor.submit(read_processor.process),
-            "BasecalledMonitoring": executor.submit(start_basecalled_monitoring,
-                                                    protocol_service,
-                                                    observer,
-                                                    read_processor,
-                                                    alignment_stats_container),
+            "BasecalledMonitoring": executor.submit(
+                start_basecalled_monitoring,
+                protocol_service,
+                observer,
+                read_processor,
+                alignment_stats_container
+            )
         }
 
         done, not_done = concurrent.futures.wait(
@@ -165,10 +181,24 @@ def main() -> None:
                 if len(freshly_done) > 0:
                     done |= freshly_done
 
-                    clean_threads(message_queue, printer_thread, observer, read_processor, read_until_analysis, futures)
+                    clean_threads(
+                        message_queue,
+                        printer_thread,
+                        observer,
+                        read_processor,
+                        read_until_analysis,
+                        futures
+                    )
                     break
         except KeyboardInterrupt:
-            clean_threads(message_queue, printer_thread, observer, read_processor, read_until_analysis, futures)
+            clean_threads(
+                message_queue,
+                printer_thread,
+                observer,
+                read_processor,
+                read_until_analysis,
+                futures
+            )
 
         for future in done:
             try:

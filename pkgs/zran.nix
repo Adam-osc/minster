@@ -10,7 +10,6 @@ let
                                "cc -shared -fPIC -I${src}/indexed_gzip -o libzran.so ${src}/indexed_gzip/zran.c ${src}/indexed_gzip/zran_file_util.c"
                              else
                                "cc -dynamiclib -fPIC -I${src}/indexed_gzip -install_name $out/lib/libzran.dylib -o libzran.dylib ${src}/indexed_gzip/zran.c ${src}/indexed_gzip/zran_file_util.c");
-
 in
 stdenv.mkDerivation rec {
   pname = "zran";

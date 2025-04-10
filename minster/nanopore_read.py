@@ -47,6 +47,7 @@ class NanoporeRead:
         warnings.warn(self._fastq_file_path + " does not comply with the minKNOW specification.")
         return False
 
+
 @dataclass
 class ReadBuilder:
     _fastq_file_path: str
@@ -77,14 +78,17 @@ class ReadBuilder:
     def get_result(self) -> NanoporeRead:
         qual = self._read.quali
 
-        return NanoporeRead(self._barcode_name,
-                            self._channel,
-                            self._fastq_file_path,
-                            ReadBuilder._mean_qscore(qual),
-                            self._read,
-                            self._read_index,
-                            self._run_id,
-                            self._start_time)
+        return NanoporeRead(
+            self._barcode_name,
+            self._channel,
+            self._fastq_file_path,
+            ReadBuilder._mean_qscore(qual),
+            self._read,
+            self._read_index,
+            self._run_id,
+            self._start_time
+        )
+
 
 @dataclass
 class ReadDirector:
@@ -108,10 +112,12 @@ class ReadDirector:
 
     def construct_read(self) -> NanoporeRead:
         description_dict = ReadDirector._parse_fastq_description(self._read.description)
-        read_builder = ReadBuilder(self._fastq_file_path,
-                                   self._read,
-                                   description_dict["run_id"],
-                                   datetime.fromisoformat(description_dict["start_time"]))
+        read_builder = ReadBuilder(
+            self._fastq_file_path,
+            self._read,
+            description_dict["run_id"],
+            datetime.fromisoformat(description_dict["start_time"])
+        )
 
         if "read" in description_dict:
             read_builder.set_channel(int(description_dict["read"]))

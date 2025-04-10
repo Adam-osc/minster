@@ -4,7 +4,7 @@ from typing import Annotated, ClassVar
 from pydantic import BaseModel, AnyUrl, confloat, conint, constr, PositiveInt
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, TomlConfigSettingsSource
 
-UnitFloat = Annotated[float, confloat(gt=0, lt=1)]
+UnitFloat = Annotated[float, confloat(ge=0, le=1)]
 UnprivPortInt = Annotated[int, conint(ge=1024, le=65535)]
 HostName = Annotated[str, constr(max_length=253, pattern=r'^([a-z0-9-]+(\.[a-z0-9-]+)*)$')]
 

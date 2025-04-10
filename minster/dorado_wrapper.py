@@ -15,6 +15,7 @@ class ReadChunk(NamedTuple):
     channel: int
     read_id: str
 
+
 class ReadChunkWrap:
     def __init__(self, channel: int, read_id: str, seq: str):
         self._read_chunk: ReadChunk = ReadChunk(channel, read_id)
@@ -28,11 +29,14 @@ class ReadChunkWrap:
     def seq(self) -> str:
         return self._seq
 
+
 class DoradoWrapper:
-    def __init__(self,
-                 basecaller_settings: BasecallerSettings,
-                 sampling_rate: float,
-                 throttle: float):
+    def __init__(
+            self,
+            basecaller_settings: BasecallerSettings,
+            sampling_rate: float,
+            throttle: float
+    ):
         self._throttle: float = throttle
         self._max_attempts: int = basecaller_settings.max_attempts
         self._sampling_rate: float = sampling_rate
@@ -42,22 +46,28 @@ class DoradoWrapper:
         )
         self._basecall_client.connect()
 
-    def basecall(self,
-                 reads: list[tuple[int, GetLiveReadsResponse.ReadData]],
-                 signal_dtype: np.dtype[str],
-                 calibration_values: dict[int, CALIBRATION]) -> Iterable[ReadChunkWrap]:
+    def basecall(
+            self,
+            reads: list[tuple[int, GetLiveReadsResponse.ReadData]],
+            signal_dtype: np.dtype[str],
+            calibration_values: dict[int, CALIBRATION]
+    ) -> Iterable[ReadChunkWrap]:
         channels: dict[str, int] = dict()
         reads_to_basecall: list[dict] = []
 
         for channel, read in reads:
             channels[read.id] = channel
             raw_data = np.frombuffer(read.raw_data, signal_dtype)
-            reads_to_basecall.append(package_read(read_id=read.id,
-                                                  raw_data=raw_data,
-                                                  daq_offset=calibration_values[channel].offset,
-                                                  daq_scaling=calibration_values[channel].scaling,
-                                                  sampling_rate=self._sampling_rate,
-                                                  start_time=read.start_sample))
+            reads_to_basecall.append(
+                package_read(
+                    read_id=read.id,
+                    raw_data=raw_data,
+                    daq_offset=calibration_values[channel].offset,
+                    daq_scaling=calibration_values[channel].scaling,
+                    sampling_rate=self._sampling_rate,
+                    start_time=read.start_sample
+                )
+            )
 
         if len(reads_to_basecall) == 0:
             return None
@@ -87,6 +97,8 @@ class DoradoWrapper:
                     read_id = result["metadata"]["read_id"]
                     basecalled_reads += 1
 
-                    yield ReadChunkWrap(channels[read_id],
-                                        read_id,
-                                        result["datasets"]["sequence"])
+                    yield ReadChunkWrap(
+                        channels[read_id],
+                        read_id,
+                        result["datasets"]["sequence"]
+                    )

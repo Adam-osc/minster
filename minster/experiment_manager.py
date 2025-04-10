@@ -9,10 +9,12 @@ from minster.read_processor import ReadProcessor
 
 
 class ExperimentManager:
-    def __init__(self,
-                 protocol: ProtocolService,
-                 read_processor: ReadProcessor,
-                 alignment_stats_container: AlignmentStatsContainer):
+    def __init__(
+            self,
+            protocol: ProtocolService,
+            read_processor: ReadProcessor,
+            alignment_stats_container: AlignmentStatsContainer
+    ):
         self._protocol: ProtocolService = protocol
         self._read_processor: ReadProcessor = read_processor
         self._alignment_stats_container: AlignmentStatsContainer = alignment_stats_container

@@ -8,9 +8,11 @@ from minster.classifiers.classifier import Classifier
 
 
 class ReadProcessor:
-    def __init__(self,
-                 classifier: Classifier,
-                 alignment_stats_container: AlignmentStatsContainer):
+    def __init__(
+            self,
+            classifier: Classifier,
+            alignment_stats_container: AlignmentStatsContainer
+    ):
         self._batch_size: int = 5000
         self._target_base_count: int = 1000000
         self._read_count: int = 0

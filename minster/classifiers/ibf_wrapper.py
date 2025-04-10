@@ -19,7 +19,8 @@ class IBFWrapper(Classifier):
             ibf_settings.k,
             ibf_settings.hashes,
             ibf_settings.error_rate,
-            ibf_settings.confidence)
+            ibf_settings.confidence
+        )
         self._lock: threading.Lock = threading.Lock()
 
         for container_path, ref_seq in reference_sequences:
