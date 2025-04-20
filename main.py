@@ -8,21 +8,23 @@ from pathlib import Path
 from queue import Queue
 from typing import Optional
 
+import mappy as mp
 from minknow_api import Connection
 from minknow_api.acquisition_pb2 import AcquisitionState
 from minknow_api.manager import Manager
 from minknow_api.protocol_service import ProtocolService
 from watchdog.observers.polling import PollingObserver as Observer
 
-from minster.alignment_stats import AlignmentStatsContainer
 from minster.classifiers.classifier import Classifier
-from minster.classifiers.ibf_wrapper import IBFWrapper
+from minster.classifiers.classifier_factory import ClassifierFactory
 from minster.config import ExperimentSettings, SequencerSettings
 from minster.experiment_manager import ExperimentManager
 from minster.fastq_handler import FastqHandler
-from minster.printer import Printer
+from minster.metrics.command_processor import MetricCommand, CommandProcessor
+from minster.metrics.metrics_store import MetricsStore
 from minster.read_processor import ReadProcessor
 from minster.read_until_analysis import ReadUntilAnalysis
+from minster.strata_balancer import StrataBalancer
 
 ACQUISITION_ACTIVE_STATES = {
     AcquisitionState.ACQUISITION_RUNNING
@@ -50,16 +52,15 @@ def get_active_connection(sequencer_settings: SequencerSettings) -> Optional[Con
 
 
 def clean_threads(
-        message_queue: Queue,
-        printer_thread: threading.Thread,
+        command_queue: Queue[Optional[CommandProcessor]],
+        cmd_processor_thread: threading.Thread,
         observer: Observer,
         read_processor: ReadProcessor,
         read_until_analysis: ReadUntilAnalysis,
         futures: dict[str, Future[None]]
 ) -> None:
-    message_queue.put("Shutting down all threads.")
-    message_queue.put(None)
-    printer_thread.join()
+    command_queue.put(None)
+    cmd_processor_thread.join()
 
     observer.stop()
     read_processor.quit()
@@ -74,12 +75,10 @@ def start_basecalled_monitoring(
         protocol_service: ProtocolService,
         observer: Observer,
         read_processor: ReadProcessor,
-        alignment_stats_container: AlignmentStatsContainer
 ) -> None:
     exp_manager = ExperimentManager(
         protocol_service,
         read_processor,
-        alignment_stats_container
     )
     event_handler = FastqHandler(exp_manager)
 
@@ -117,6 +116,27 @@ def main() -> None:
     ExperimentSettings.set_toml_file(Path(args.config))
     experiment_settings = ExperimentSettings()
 
+    command_queue: Queue[Optional[MetricCommand]] = Queue()
+    metrics_store = MetricsStore(experiment_settings.metrics_store)
+    command_processor = CommandProcessor(command_queue, metrics_store)
+    cmd_processor_thread = threading.Thread(target=command_processor.run, daemon=True)
+    cmd_processor_thread.start()
+
+    print("Initializing aligner for the reference sequences")
+    reference_files: list[str] = [str(rf.path) for rf in experiment_settings.reference_files]
+    aligners: dict[str, mp.Aligner] = {
+        rf:mp.Aligner(rf) for rf in reference_files
+    }
+    classifier_factory = ClassifierFactory(aligners, reference_files)
+    classifier: Classifier = classifier_factory.create(experiment_settings.read_until.classifier)
+
+    strata_balancer = StrataBalancer(
+        experiment_settings.reference_sequences,
+        aligners,
+        experiment_settings.minimum_mapped_bases,
+        command_queue
+    )
+
     print("Waiting for device to enter acquisition state")
     maybe_connection = get_active_connection(experiment_settings.sequencer)
     if maybe_connection is None:
@@ -125,36 +145,19 @@ def main() -> None:
     connection: Connection = maybe_connection
     protocol_service: ProtocolService = connection.protocol
 
-    message_queue: Queue[Optional[str]] = Queue()
-    printer = Printer(message_queue)
-    printer_thread = threading.Thread(target=printer.process, daemon=True)
-    printer_thread.start()
-
     read_until_settings = experiment_settings.read_until
-    print("Building a bloom filter for the reference sequences")
-    depletion_ibf: Classifier = IBFWrapper(
-        read_until_settings.interleaved_bloom_filter,
-        experiment_settings.reference_sequences
-    )
     read_until_analysis = ReadUntilAnalysis(
         read_until_settings,
         float(connection.device.get_sample_rate().sample_rate),
-        depletion_ibf,
-        message_queue
-    )
-    print("Initializing aligner for the reference sequences")
-    alignment_stats_container = AlignmentStatsContainer(
-        experiment_settings.min_coverage,
-        experiment_settings.min_read_length,
-        message_queue,
-        experiment_settings.reference_sequences
-    )
-    read_processor = ReadProcessor(
-        depletion_ibf,
-        alignment_stats_container
+        classifier,
+        strata_balancer
     )
     read_until_analysis.run()
 
+    read_processor = ReadProcessor(
+        classifier,
+        strata_balancer
+    )
     observer = Observer()
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
@@ -165,8 +168,7 @@ def main() -> None:
                 start_basecalled_monitoring,
                 protocol_service,
                 observer,
-                read_processor,
-                alignment_stats_container
+                read_processor
             )
         }
 
@@ -182,8 +184,8 @@ def main() -> None:
                     done |= freshly_done
 
                     clean_threads(
-                        message_queue,
-                        printer_thread,
+                        command_queue,
+                        cmd_processor_thread,
                         observer,
                         read_processor,
                         read_until_analysis,
@@ -192,8 +194,8 @@ def main() -> None:
                     break
         except KeyboardInterrupt:
             clean_threads(
-                message_queue,
-                printer_thread,
+                command_queue,
+                cmd_processor_thread,
                 observer,
                 read_processor,
                 read_until_analysis,

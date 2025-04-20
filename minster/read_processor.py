@@ -2,7 +2,7 @@ import threading
 from collections import deque
 from typing import Optional
 
-from minster.alignment_stats import AlignmentStatsContainer
+from minster.strata_balancer import StrataBalancer
 from minster.nanopore_read import NanoporeRead
 from minster.classifiers.classifier import Classifier
 
@@ -11,7 +11,7 @@ class ReadProcessor:
     def __init__(
             self,
             classifier: Classifier,
-            alignment_stats_container: AlignmentStatsContainer
+            strata_balancer: StrataBalancer
     ):
         self._batch_size: int = 5000
         self._target_base_count: int = 1000000
@@ -19,8 +19,9 @@ class ReadProcessor:
         self._base_count: int = 0
         self._queue: deque[Optional[NanoporeRead]] = deque()
         self._condition: threading.Condition = threading.Condition()
-        self._alignment_stats_container: AlignmentStatsContainer = alignment_stats_container
+        self._strata_balancer: StrataBalancer = strata_balancer
         self._classifier: Classifier = classifier
+        self._classifier_active: bool = False
 
     def quit(self) -> None:
         with self._condition:
@@ -64,5 +65,8 @@ class ReadProcessor:
             if breaking:
                 break
 
-            for seq_id in self._alignment_stats_container.update_all_alignment_stats(batch):
-                self._classifier.activate_sequence(seq_id)
+            self._strata_balancer.update_alignments(batch)
+            if not self._classifier_active and self._strata_balancer.are_all_warmed_up_p():
+                for strata_id in self._strata_balancer.get_all_strata():
+                    self._classifier.activate_sequences(strata_id)
+                self._classifier_active = True

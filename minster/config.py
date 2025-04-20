@@ -1,10 +1,10 @@
 from pathlib import Path
-from typing import Annotated, ClassVar
+from typing import Annotated, ClassVar, Optional
 
-from pydantic import BaseModel, AnyUrl, confloat, conint, constr, PositiveInt
+from pydantic import BaseModel, model_validator, AnyUrl, confloat, conint, constr, PositiveInt
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, TomlConfigSettingsSource
 
-UnitFloat = Annotated[float, confloat(ge=0, le=1)]
+UnitFloat = Annotated[float, confloat(gt=0, lt=1)]
 UnprivPortInt = Annotated[int, conint(ge=1024, le=65535)]
 HostName = Annotated[str, constr(max_length=253, pattern=r'^([a-z0-9-]+(\.[a-z0-9-]+)*)$')]
 
@@ -16,16 +16,36 @@ class BasecallerSettings(BaseModel):
 
 class IBFSettings(BaseModel):
     fragment_length: PositiveInt
+    w: PositiveInt
     k: PositiveInt
-    error_rate: UnitFloat
     hashes: PositiveInt = 3
-    confidence: UnitFloat = 0.95
+    num_of_bins: PositiveInt
+    fp_rate: UnitFloat
+    preserved_pct: UnitFloat
+
+class MappySettings(BaseModel):
+    pass
+
+class ClassifierSettings(BaseModel):
+    mappy: Optional[MappySettings] = None
+    interleaved_bloom_filter: Optional[IBFSettings] = None
+
+    @model_validator(mode='after')
+    def check_only_one_classifier(self) -> 'ClassifierSettings':
+        all_classifiers: list[Optional[BaseModel]] = [
+            self.mappy,
+            self.interleaved_bloom_filter
+        ]
+
+        if sum(1 for c in all_classifiers if c is not None) > 1:
+            raise ValueError("Only one classifier can be specified.")
+        return self
 
 class ReadUntilSettings(BaseModel):
     host: HostName = "127.0.0.1"
     port: UnprivPortInt = 8000
     basecaller: BasecallerSettings
-    interleaved_bloom_filter: IBFSettings
+    classifier: ClassifierSettings
     depletion_chunks: PositiveInt = 4
     throttle: UnitFloat = 0.1
 
@@ -34,15 +54,21 @@ class SequencerSettings(BaseModel):
     host: HostName = "localhost"
     port: UnprivPortInt = 9501
 
+class ReferenceSequence(BaseModel):
+    path: Path
+    expected_ratio: PositiveInt
+
 class ExperimentSettings(BaseSettings):
-    reference_sequences: list[Path]
-    min_coverage: PositiveInt
-    min_read_length: PositiveInt
+    metrics_store: str
+
+    reference_sequences: list[ReferenceSequence]
+    minimum_mapped_bases: int
+
     sequencer: SequencerSettings
     read_until: ReadUntilSettings
 
     _is_toml_set: ClassVar[bool] = False
-    _toml_file: ClassVar[Path] = Path("./minster.toml")
+    _toml_file: ClassVar[Path]
 
     @classmethod
     def set_toml_file(cls, toml_file: Path) -> None:

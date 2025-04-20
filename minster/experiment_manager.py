@@ -3,7 +3,6 @@ import gzip
 import pyfastx
 from minknow_api.protocol_service import ProtocolService
 
-from minster.alignment_stats import AlignmentStatsContainer
 from minster.nanopore_read import ReadDirector
 from minster.read_processor import ReadProcessor
 
@@ -13,11 +12,9 @@ class ExperimentManager:
             self,
             protocol: ProtocolService,
             read_processor: ReadProcessor,
-            alignment_stats_container: AlignmentStatsContainer
     ):
         self._protocol: ProtocolService = protocol
         self._read_processor: ReadProcessor = read_processor
-        self._alignment_stats_container: AlignmentStatsContainer = alignment_stats_container
 
     @staticmethod
     def _get_run_id(fastq: str) -> str:
@@ -37,9 +34,6 @@ class ExperimentManager:
         return self._protocol.get_run_info().output_path
 
     def parse_fastq_file(self, fastq_path: str) -> None:
-        if self._alignment_stats_container.are_all_covered():
-            self._protocol.stop_protocol()
-
         for record in pyfastx.Fastq(fastq_path):
             fastq_read = ReadDirector(record, fastq_path).construct_read()
 

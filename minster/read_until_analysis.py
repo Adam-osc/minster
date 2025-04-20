@@ -2,11 +2,13 @@ import time
 from collections import defaultdict
 from queue import Queue
 from timeit import default_timer as timer
-from typing import Iterable
+from typing import Iterable, Optional
 
+from minster.classifiers.classifier import Classifier
 from minster.config import ReadUntilSettings
 from minster.dorado_wrapper import DoradoWrapper, ReadChunk, ReadChunkWrap
-from minster.classifiers.classifier import Classifier
+from minster.metrics.command_processor import MetricCommand, RecordClassifiedReadCommand
+from minster.strata_balancer import StrataBalancer
 from read_until import ReadUntilClient
 
 
@@ -16,7 +18,8 @@ class ReadUntilAnalysis:
             read_until_settings: ReadUntilSettings,
             sampling_rate: float,
             classifier: Classifier,
-            message_queue: Queue
+            strata_balancer: StrataBalancer,
+            command_queue: Queue[Optional[MetricCommand]]
     ):
         print("Initializing the Read Until Client")
         self._read_until_client: ReadUntilClient = ReadUntilClient(
@@ -33,7 +36,8 @@ class ReadUntilAnalysis:
         self._depletion_chunks: int = read_until_settings.depletion_chunks
         self._throttle: float = read_until_settings.throttle
         self._classifier: Classifier = classifier
-        self._message_queue: Queue = message_queue
+        self._strata_balancer: StrataBalancer = strata_balancer
+        self._command_queue: Queue[Optional[MetricCommand]] = command_queue
 
     def run(self) -> None:
         self._read_until_client.run()
@@ -56,14 +60,20 @@ class ReadUntilAnalysis:
 
             for chunk_wrap in basecalled_reads:
                 read_chunk = chunk_wrap.read_chunk
-                if self._classifier.is_sequence_present(chunk_wrap.seq):
-                    self._message_queue.put(f"{read_chunk.read_id}: was found positive by the classifier.")
+                matched_cont_id = self._classifier.is_sequence_present(chunk_wrap.seq)
+                self._command_queue.put(
+                    RecordClassifiedReadCommand(read_chunk.read_id, matched_cont_id)
+                )
+
+                if matched_cont_id is not None:
+                    if depletion_hits[matched_cont_id] == 0 and not self._strata_balancer.thin_out_p(matched_cont_id):
+                        stop_receiving_batch.append(read_chunk)
+
                     depletion_hits[read_chunk.read_id] += 1
                     if depletion_hits[read_chunk.read_id] >= self._depletion_chunks:
                         depletion_hits.pop(read_chunk.read_id)
                         unblock_batch.append(read_chunk)
                 else:
-                    self._message_queue.put(f"{read_chunk.read_id}: was found negative by the classifier.")
                     stop_receiving_batch.append(read_chunk)
 
             self._read_until_client.unblock_read_batch(unblock_batch)

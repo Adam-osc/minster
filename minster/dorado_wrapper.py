@@ -15,11 +15,10 @@ class ReadChunk(NamedTuple):
     channel: int
     read_id: str
 
-
 class ReadChunkWrap:
     def __init__(self, channel: int, read_id: str, seq: str):
         self._read_chunk: ReadChunk = ReadChunk(channel, read_id)
-        self._seq = seq
+        self._seq: str = seq
 
     @property
     def read_chunk(self) -> ReadChunk:

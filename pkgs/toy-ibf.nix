@@ -7,19 +7,19 @@
 
 buildPythonPackage rec {
   pname = "toy-ibf";
-  version = "e1da1ff0e4193386c2ab98eee301581b66a37e9f";
+  version = "0e1832fd351891677ab97a26a69c7b5cbcb8cf77";
   pyproject = true;
 
   src = fetchFromGitHub {
     owner = "Adam-osc";
     repo = pname;
     rev = version;
-    hash = "sha256-4UT/KqPKmMaAXnNS2x7ZNrYUMzqRDp3F7muKCF3yXfk=";
+    hash = "sha256-5hgzjD46UKdq1BARQ5Reqhteny/6xdEeOBl+cvydsUA=";
   };
 
   cargoDeps = rustPlatform.fetchCargoTarball {
     inherit src;
-    hash = "sha256-VfqW5CXvJiN8CGlWR1MAIezmAGBMch8ljKzwxlzF3Sk=";
+    hash = "sha256-ABCnjhGp0AONkXtpGB/Hcn52ofxmaD5GbViYEAHlIOE=";
   };
   buildInputs = (if stdenv.hostPlatform.isDarwin then
                    [ darwin.libiconv ]
