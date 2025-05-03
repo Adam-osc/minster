@@ -40,7 +40,7 @@ class MappyWrapper(Classifier):
                 self._all_aligners[container_id].toggle_active()
 
     def is_sequence_present(self, sequence: str) -> Optional[str]:
-        best_algn_key: Optional[tuple[int, int, int, float]] = None
+        best_algn_key: Optional[tuple[int, int, int]] = None
         best_cont_id: Optional[str] = None
 
         with self._lock:
@@ -54,9 +54,8 @@ class MappyWrapper(Classifier):
 
                     algn_key = (
                         hit.mapq,
-                        hit.score,
-                        -hit.NM,
-                        hit.mlen / len(sequence)
+                        hit.mlen,
+                        -hit.NM
                     )
                     if best_algn_key is None or algn_key > best_algn_key:
                         best_cont_id = container_id

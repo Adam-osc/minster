@@ -1,26 +1,21 @@
 import random
-import threading
 from dataclasses import dataclass, field
 from queue import Queue
 from typing import Iterable, Optional
 
 import mappy as mp
 
-from alignment_stats import AlignmentStats
+from metrics.command_processor import MetricCommand, RecordBasecalledReadCommand
+from minster.alignment_stats import AlignmentStats
+from minster.estimator_manager import EstimatorManager
 from minster.config import ReferenceSequence
-from minster.metrics.command_processor import MetricCommand, RecordBasecalledReadCommand
-from nanopore_read import NanoporeRead
+from minster.nanopore_read import NanoporeRead
 
 
 @dataclass
 class StrataRecord:
-    _expected_ratio: int
     _aligner: mp.Aligner
     _alignment_stats: AlignmentStats
-
-    @property
-    def expected_ratio(self) -> int:
-        return self._expected_ratio
 
     @property
     def aligner(self) -> mp.Aligner:
@@ -37,16 +32,12 @@ class StrataManager:
     def insert_record(
             self,
             strata_id: str,
-            expected_ratio: int,
             aligner: mp.Aligner
     ) -> None:
-        self._records[strata_id] = StrataRecord(expected_ratio, aligner, AlignmentStats(strata_id))
+        self._records[strata_id] = StrataRecord(aligner, AlignmentStats(strata_id))
 
     def get_total_aligned_length(self):
         return sum(record.alignment_stats.get_aligned_length() for record in self._records.values())
-
-    def get_expected_ratio(self, strata_id: str) -> float:
-        return self._records[strata_id].expected_ratio
 
     def get_aligner(self, strata_id: str) -> mp.Aligner:
         return self._records[strata_id].aligner
@@ -57,6 +48,9 @@ class StrataManager:
     def get_aligned_length(self, strata_id: str) -> int:
         return self._records[strata_id].alignment_stats.get_aligned_length()
 
+    def get_aligned_read_count(self, strata_id: str) -> int:
+        return self._records[strata_id].alignment_stats.get_read_count()
+
     def get_all_strata(self) -> Iterable[str]:
         return self._records.keys()
 
@@ -65,19 +59,25 @@ class StrataBalancer:
             self,
             reference_sequences: list[ReferenceSequence],
             aligners: dict[str, mp.Aligner],
-            warn_up_theshold: int,
+            minimum_mapped_bases: int,
+            minimum_reads_for_parameter_estimation: int,
+            minimum_fragments_for_ratio_estimation: int,
+            thinning_accelerator: int,
             command_queue: Queue[Optional[MetricCommand]]
     ):
         self._strata_manager: StrataManager = StrataManager()
-        self._whole: int = sum(rs.expected_ratio for rs in reference_sequences)
         for rs in reference_sequences:
             self._strata_manager.insert_record(
                 str(rs.path),
-                rs.expected_ratio,
                 aligners[str(rs.path)]
             )
-        self._warm_up_threshold: int = warn_up_theshold
-        self._consistent_algn_lock: threading.Lock = threading.Lock()
+        self._estimator_manager: EstimatorManager = EstimatorManager(
+            reference_sequences,
+            minimum_fragments_for_ratio_estimation,
+            thinning_accelerator
+        )
+        self._minimum_mapped_bases: int = minimum_mapped_bases
+        self._minimum_reads_for_parameter_estimation: int = minimum_reads_for_parameter_estimation
         self._thr_buf: mp.ThreadBuffer = mp.ThreadBuffer()
         self._command_queue: Queue[Optional[MetricCommand]] = command_queue
 
@@ -85,35 +85,34 @@ class StrataBalancer:
         return self._strata_manager.get_all_strata()
 
     def are_all_warmed_up_p(self) -> bool:
-        # Decided to not keep the alignment state frozen during this method
+        # Decided to not keep the alignment state frozen during this entire method
         return all(
-            self._strata_manager.get_aligned_length(strata_id) > self._warm_up_threshold
+            self._strata_manager.get_aligned_length(strata_id) > self._minimum_mapped_bases
+            for strata_id in self._strata_manager.get_all_strata()
+        ) and all(
+            self._strata_manager.get_aligned_read_count(strata_id) >= self._minimum_reads_for_parameter_estimation
             for strata_id in self._strata_manager.get_all_strata()
         )
 
     def thin_out_p(self, strata_id: str) -> bool:
-        # Decided to not keep the alignment state frozen during this method
-        if not self.are_all_warmed_up_p():
+        # Decided to not keep the alignment state frozen during this entire method
+        if not self.are_all_warmed_up_p() or not self._estimator_manager.are_all_warmed_up():
             return False
 
-        with self._consistent_algn_lock:
-            temp_aligned_length = self._strata_manager.get_aligned_length(strata_id)
-            temp_total_aligned_length = self._strata_manager.get_total_aligned_length()
+        draw = random.random()
+        return draw > self._estimator_manager.get_acceptance_rate(strata_id)
 
-        threshold = random.random()
-        return min(
-            (
-                    (self._strata_manager.get_expected_ratio(strata_id) * temp_total_aligned_length) /
-                    (temp_aligned_length * self._whole)
-            ),
-            1
-        ) < threshold
+    def update_estimated_received_bases(self, category: str) -> None:
+        if not self.are_all_warmed_up_p():
+            return
+
+        self._estimator_manager.update_estimated_received_bases(category)
 
     def update_alignments(self, reads: Iterable[NanoporeRead]) -> None:
         for read in reads:
             best_read: Optional[NanoporeRead] = None
             best_strata: Optional[str] = None
-            best_algn_key: Optional[tuple[int, int, int, float]] = None
+            best_algn_key: Optional[tuple[int, int, int]] = None
 
             for strata_id in self._strata_manager.get_all_strata():
                 hits = self._strata_manager.get_aligner(strata_id).map(read.get_sequence(), buf=self._thr_buf)
@@ -123,18 +122,17 @@ class StrataBalancer:
 
                     algn_key = (
                         hit.mapq,
-                        hit.score,
-                        -hit.NM,
-                        hit.mlen / len(read.get_sequence())
+                        hit.mlen,
+                        -hit.NM
                     )
-                    if best_read is None or (best_algn_key is not None and algn_key > best_algn_key):
+                    if best_algn_key is None or algn_key > best_algn_key:
                         best_read = read
                         best_algn_key = algn_key
                         best_strata = strata_id
 
             if best_read is not None and best_strata is not None:
-                with self._consistent_algn_lock:
-                    self._strata_manager.update_aligned_length(best_strata, best_read)
+                self._strata_manager.update_aligned_length(best_strata, best_read)
+                self._estimator_manager.add_entire_read(best_strata, best_read)
                 self._command_queue.put(
                     RecordBasecalledReadCommand(best_read.get_read_id(), best_strata, best_read.get_sequence_length())
                 )

@@ -120,7 +120,7 @@ class ReadDirector:
         )
 
         if "read" in description_dict:
-            read_builder.set_channel(int(description_dict["read"]))
+            read_builder.set_read_index(int(description_dict["read"]))
 
         channel_query: Optional[str] = None
         if "ch" in description_dict:

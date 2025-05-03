@@ -1,4 +1,12 @@
 metrics_store = "/Users/adam/thesis/realtime-seq/test-data/metrics.db"
+minimum_mapped_bases = 1_000_000
+minimum_reads_for_parameter_estimation = 30
+minimum_fragments_for_ratio_estimation = 30
+thinning_accelerator = 8
+
+[read_processor]
+batch_size = 10
+target_base_count = 50_000
 
 [[reference_sequences]]
 path = "/Users/adam/thesis/realtime-seq/test-data/GCF_904425475.1/GCF_904425475.1_MG1655_genomic.fna"
@@ -7,8 +15,6 @@ expected_ratio = 1
 [[reference_sequences]]
 path = "/Users/adam/thesis/realtime-seq/test-data/Homo_sapiens.GRCh38.dna.chromosome.1.fa"
 expected_ratio = 1
-
-minimum_mapped_bases = 100_000
 
 [sequencer]
 host = "localhost"

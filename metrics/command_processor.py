@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from queue import Queue
 from typing import Optional
 
-from metrics_store import MetricsStore
+from metrics.metrics_store import MetricsStore
 
 
 class MetricCommand(ABC):

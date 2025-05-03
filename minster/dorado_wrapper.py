@@ -43,6 +43,7 @@ class DoradoWrapper:
             address=str(basecaller_settings.address),
             config=basecaller_settings.config,
         )
+        self._basecall_client.set_params({'priority': PyBasecallClient.high_priority})
         self._basecall_client.connect()
 
     def basecall(
@@ -57,16 +58,15 @@ class DoradoWrapper:
         for channel, read in reads:
             channels[read.id] = channel
             raw_data = np.frombuffer(read.raw_data, signal_dtype)
-            reads_to_basecall.append(
-                package_read(
+            packaged_read = package_read(
                     read_id=read.id,
                     raw_data=raw_data,
                     daq_offset=calibration_values[channel].offset,
                     daq_scaling=calibration_values[channel].scaling,
                     sampling_rate=self._sampling_rate,
                     start_time=read.start_sample
-                )
             )
+            reads_to_basecall.append(packaged_read)
 
         if len(reads_to_basecall) == 0:
             return None

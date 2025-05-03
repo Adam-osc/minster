@@ -5,15 +5,16 @@ from minknow_api.protocol_service import ProtocolService
 
 from minster.nanopore_read import ReadDirector
 from minster.read_processor import ReadProcessor
+from simulation.fake_protocol_service import FakeProtocolService
 
 
 class ExperimentManager:
     def __init__(
             self,
-            protocol: ProtocolService,
+            protocol: FakeProtocolService | ProtocolService,
             read_processor: ReadProcessor,
     ):
-        self._protocol: ProtocolService = protocol
+        self._protocol: FakeProtocolService | ProtocolService = protocol
         self._read_processor: ReadProcessor = read_processor
 
     @staticmethod

@@ -4,15 +4,15 @@ from queue import Queue
 from timeit import default_timer as timer
 from typing import Iterable, Optional
 
+from metrics.command_processor import MetricCommand, RecordClassifiedReadCommand
 from minster.classifiers.classifier import Classifier
 from minster.config import ReadUntilSettings
 from minster.dorado_wrapper import DoradoWrapper, ReadChunk, ReadChunkWrap
-from minster.metrics.command_processor import MetricCommand, RecordClassifiedReadCommand
 from minster.strata_balancer import StrataBalancer
-from read_until import ReadUntilClient
+from read_until import ReadUntilClient, AccumulatingCache
 
 
-class ReadUntilAnalysis:
+class ReadUntilRegulator:
     def __init__(
             self,
             read_until_settings: ReadUntilSettings,
@@ -25,8 +25,9 @@ class ReadUntilAnalysis:
         self._read_until_client: ReadUntilClient = ReadUntilClient(
             mk_host=read_until_settings.host,
             mk_port=read_until_settings.port,
-            one_chunk=False
-        )  # NOTE: check one_check, etc. with readfish
+            one_chunk=False,
+            cache_type=AccumulatingCache
+        )
         print("Initializing the Basecaller")
         self._basecaller: DoradoWrapper = DoradoWrapper(
             read_until_settings.basecaller,
@@ -45,8 +46,8 @@ class ReadUntilAnalysis:
     def reset(self) -> None:
         self._read_until_client.reset()
 
-    def analysis(self) -> None:
-        depletion_hits: dict[str, int] = defaultdict(int)
+    def run_regulation_loop(self) -> None:
+        fragments_count: dict[str, int] = defaultdict(int)
 
         while self._read_until_client.is_running:
             t0 = timer()
@@ -54,27 +55,35 @@ class ReadUntilAnalysis:
             unblock_batch: list[ReadChunk] = []
 
             basecalled_reads: Iterable[ReadChunkWrap] = self._basecaller.basecall(
-                self._read_until_client.get_read_chunks(self._read_until_client.channel_count, last=True),
+                # self._read_until_client.channel_count
+                self._read_until_client.get_read_chunks(1, last=True),
                 self._read_until_client.signal_dtype,
-                self._read_until_client.calibration_values)
+                self._read_until_client.calibration_values
+            )
 
             for chunk_wrap in basecalled_reads:
                 read_chunk = chunk_wrap.read_chunk
-                matched_cont_id = self._classifier.is_sequence_present(chunk_wrap.seq)
+                matched_cat_id = self._classifier.is_sequence_present(chunk_wrap.seq)
                 self._command_queue.put(
-                    RecordClassifiedReadCommand(read_chunk.read_id, matched_cont_id)
+                    RecordClassifiedReadCommand(read_chunk.read_id, matched_cat_id)
                 )
 
-                if matched_cont_id is not None:
-                    if depletion_hits[matched_cont_id] == 0 and not self._strata_balancer.thin_out_p(matched_cont_id):
-                        stop_receiving_batch.append(read_chunk)
-
-                    depletion_hits[read_chunk.read_id] += 1
-                    if depletion_hits[read_chunk.read_id] >= self._depletion_chunks:
-                        depletion_hits.pop(read_chunk.read_id)
+                clean_up_p = False
+                if matched_cat_id is not None:
+                    self._strata_balancer.update_estimated_received_bases(matched_cat_id)
+                    if self._strata_balancer.thin_out_p(matched_cat_id):
                         unblock_batch.append(read_chunk)
+                    else:
+                        stop_receiving_batch.append(read_chunk)
+                    clean_up_p = True
                 else:
-                    stop_receiving_batch.append(read_chunk)
+                    fragments_count[read_chunk.read_id] += 1
+                    if fragments_count[read_chunk.read_id] >= self._depletion_chunks:
+                        stop_receiving_batch.append(read_chunk)
+                        clean_up_p = True
+
+                if clean_up_p:
+                    fragments_count.pop(read_chunk.read_id, None)
 
             self._read_until_client.unblock_read_batch(unblock_batch)
             self._read_until_client.stop_receiving_batch(stop_receiving_batch)

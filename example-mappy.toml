@@ -1,11 +1,19 @@
 metrics_store = "/Users/adam/thesis/realtime-seq/test-data/metrics.db"
+minimum_mapped_bases = 1_000_000
+minimum_reads_for_parameter_estimation = 30
+minimum_fragments_for_ratio_estimation = 30
+thinning_accelerator = 8
+
+[read_processor]
+batch_size = 10
+target_base_count = 50_000
 
 [[reference_sequences]]
-path = "/Users/adam/thesis/realtime-seq/test-data/GCF_904425475.1/GCF_904425475.1_MG1655_genomic.fna"
+path = "/Users/adam/Downloads/GCF_000002595.2_Chlamydomonas_reinhardtii_v5.5_genomic-filtered.fna"
 expected_ratio = 1
 
 [[reference_sequences]]
-path = "/Users/adam/thesis/realtime-seq/test-data/Homo_sapiens.GRCh38.dna.chromosome.1.fa"
+path = "/Users/adam/Downloads/GCF_000214015.3_version_140606_genomic.fna"
 expected_ratio = 1
 
 [sequencer]
@@ -16,12 +24,16 @@ name = "MN34986"
 [read_until]
 host = "127.0.0.1"
 port = 8000
-depletion_chunks = 2
+depletion_chunks = 4
 throttle = 0.1
 
 [read_until.basecaller]
 address = "ipc:///tmp/.guppy/5555"
 config = "dna_r10.4.1_e8.2_400bps_5khz_fast"
 max_attempts = 3
+
+# mappy parameters for filtering minimal mapping quality
+# should it differ between the classifier and the actual mapper?
+# should I create a general mappy_wrapper class and decorate it to become a classifier?
 
 [read_until.classifier.mappy]

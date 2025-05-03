@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Annotated, ClassVar, Optional
 
-from pydantic import BaseModel, model_validator, AnyUrl, confloat, conint, constr, PositiveInt
+from pydantic import BaseModel, model_validator, AnyUrl, confloat, conint, constr, PositiveInt, NonNegativeInt
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, TomlConfigSettingsSource
 
 UnitFloat = Annotated[float, confloat(gt=0, lt=1)]
@@ -58,11 +58,19 @@ class ReferenceSequence(BaseModel):
     path: Path
     expected_ratio: PositiveInt
 
-class ExperimentSettings(BaseSettings):
-    metrics_store: str
+class ReadProcessorSettings(BaseModel):
+    batch_size: PositiveInt
+    read_processor: PositiveInt
 
+class ExperimentSettings(BaseSettings):
+    metrics_store: Path
+    minimum_reads_for_parameter_estimation: Annotated[int, confloat(gt=1)]
+    minimum_fragments_for_ratio_estimation: PositiveInt
+    minimum_mapped_bases: PositiveInt
+    thinning_accelerator: NonNegativeInt
+
+    read_processor: ReadProcessorSettings
     reference_sequences: list[ReferenceSequence]
-    minimum_mapped_bases: int
 
     sequencer: SequencerSettings
     read_until: ReadUntilSettings

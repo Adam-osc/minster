@@ -15,16 +15,17 @@ from minknow_api.manager import Manager
 from minknow_api.protocol_service import ProtocolService
 from watchdog.observers.polling import PollingObserver as Observer
 
+from metrics.command_processor import MetricCommand, CommandProcessor
+from metrics.metrics_store import MetricsStore
 from minster.classifiers.classifier import Classifier
 from minster.classifiers.classifier_factory import ClassifierFactory
 from minster.config import ExperimentSettings, SequencerSettings
 from minster.experiment_manager import ExperimentManager
 from minster.fastq_handler import FastqHandler
-from minster.metrics.command_processor import MetricCommand, CommandProcessor
-from minster.metrics.metrics_store import MetricsStore
 from minster.read_processor import ReadProcessor
-from minster.read_until_analysis import ReadUntilAnalysis
+from minster.read_until_regulator import ReadUntilRegulator
 from minster.strata_balancer import StrataBalancer
+from simulation.fake_protocol_service import FakeProtocolService
 
 ACQUISITION_ACTIVE_STATES = {
     AcquisitionState.ACQUISITION_RUNNING
@@ -56,7 +57,7 @@ def clean_threads(
         cmd_processor_thread: threading.Thread,
         observer: Observer,
         read_processor: ReadProcessor,
-        read_until_analysis: ReadUntilAnalysis,
+        read_until_regulator: ReadUntilRegulator,
         futures: dict[str, Future[None]]
 ) -> None:
     command_queue.put(None)
@@ -64,7 +65,7 @@ def clean_threads(
 
     observer.stop()
     read_processor.quit()
-    read_until_analysis.reset()
+    read_until_regulator.reset()
 
     for name, future in futures.items():
         future.cancel()
@@ -111,19 +112,25 @@ def main() -> None:
         required=True,
         help="Path to the configuration file"
     )
+    parser.add_argument(
+        "--simulated-dir",
+        type=str,
+        required=False,
+        help="Path to the dir where the Icarust simulator writes data"
+    )
     args = parser.parse_args()
 
     ExperimentSettings.set_toml_file(Path(args.config))
     experiment_settings = ExperimentSettings()
 
     command_queue: Queue[Optional[MetricCommand]] = Queue()
-    metrics_store = MetricsStore(experiment_settings.metrics_store)
+    metrics_store = MetricsStore(str(experiment_settings.metrics_store))
     command_processor = CommandProcessor(command_queue, metrics_store)
     cmd_processor_thread = threading.Thread(target=command_processor.run, daemon=True)
     cmd_processor_thread.start()
 
     print("Initializing aligner for the reference sequences")
-    reference_files: list[str] = [str(rf.path) for rf in experiment_settings.reference_files]
+    reference_files: list[str] = [str(rf.path) for rf in experiment_settings.reference_sequences]
     aligners: dict[str, mp.Aligner] = {
         rf:mp.Aligner(rf) for rf in reference_files
     }
@@ -134,35 +141,48 @@ def main() -> None:
         experiment_settings.reference_sequences,
         aligners,
         experiment_settings.minimum_mapped_bases,
+        experiment_settings.minimum_reads_for_parameter_estimation,
+        experiment_settings.minimum_fragments_for_ratio_estimation,
+        experiment_settings.thinning_accelerator,
         command_queue
     )
 
-    print("Waiting for device to enter acquisition state")
-    maybe_connection = get_active_connection(experiment_settings.sequencer)
-    if maybe_connection is None:
-        print("Could not acquire the running protocol.")
-        sys.exit(1)
-    connection: Connection = maybe_connection
-    protocol_service: ProtocolService = connection.protocol
+    protocol_service: FakeProtocolService | ProtocolService
+    sample_rate: float
+    if args.simulated_dir is not None:
+        protocol_service = FakeProtocolService(args.simulated_dir)
+        sample_rate = 4000.0
+    else:
+        print("Waiting for device to enter acquisition state")
+        maybe_connection = get_active_connection(experiment_settings.sequencer)
+        if maybe_connection is None:
+            print("Could not acquire the running protocol.")
+            sys.exit(1)
+        connection: Connection = maybe_connection
+        protocol_service: ProtocolService = connection.protocol
+        sample_rate = float(connection.device.get_sample_rate().sample_rate)
 
     read_until_settings = experiment_settings.read_until
-    read_until_analysis = ReadUntilAnalysis(
+    read_until_regulator = ReadUntilRegulator(
         read_until_settings,
-        float(connection.device.get_sample_rate().sample_rate),
+        sample_rate,
         classifier,
-        strata_balancer
+        strata_balancer,
+        command_queue
     )
-    read_until_analysis.run()
+    read_until_regulator.run()
 
+    read_processor_settings = experiment_settings.read_processor
     read_processor = ReadProcessor(
         classifier,
-        strata_balancer
+        strata_balancer,
+        read_processor_settings
     )
     observer = Observer()
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         futures: dict[str, Future[None]] = {
-            "Analysis": executor.submit(read_until_analysis.analysis),
+            "Regulator": executor.submit(read_until_regulator.run_regulation_loop),
             "ReadProcessor": executor.submit(read_processor.process),
             "BasecalledMonitoring": executor.submit(
                 start_basecalled_monitoring,
@@ -188,7 +208,7 @@ def main() -> None:
                         cmd_processor_thread,
                         observer,
                         read_processor,
-                        read_until_analysis,
+                        read_until_regulator,
                         futures
                     )
                     break
@@ -198,7 +218,7 @@ def main() -> None:
                 cmd_processor_thread,
                 observer,
                 read_processor,
-                read_until_analysis,
+                read_until_regulator,
                 futures
             )
 

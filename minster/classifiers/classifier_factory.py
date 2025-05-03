@@ -1,8 +1,8 @@
 import mappy as mp
 
-from classifier import Classifier
-from ibf_wrapper import IBFWrapper
-from mappy_wrapper import MappyWrapper
+from minster.classifiers.classifier import Classifier
+from minster.classifiers.ibf_wrapper import IBFWrapper
+from minster.classifiers.mappy_wrapper import MappyWrapper
 from minster.config import ClassifierSettings
 
 
