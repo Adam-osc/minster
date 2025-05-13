@@ -2,9 +2,7 @@
   description = "Real-time DNA sequencing for minION.";
 
   inputs = {
-    # this revision has grpcio built with protobuf version 4
-    # overriding protobuf version for grpcio and then building it is also an option
-    nixpkgs.url = "github:NixOS/nixpkgs/47c1824c261a343a6acca36d168a0a86f0e66292";
+    nixpkgs.url = "github:NixOS/nixpkgs/09b35c919d51bc292d9de1351296b609b2dd0a6f";
   };
 
   outputs = { self, nixpkgs, flake-utils, ... }:
@@ -13,8 +11,24 @@
         pkgs = import nixpkgs {
           inherit system;
         };
+
         python = pkgs.python312;
         pythonPackages = pkgs.python312Packages;
+
+        grpcio = import ./pkgs/grpcio.nix {
+          lib = pkgs.lib;
+          stdenv = pkgs.stdenv;
+          buildPythonPackage = pythonPackages.buildPythonPackage;
+          c-ares = pkgs.c-ares;
+          cython = pythonPackages.cython;
+          fetchPypi = pythonPackages.fetchPypi;
+          openssl = pkgs.openssl;
+          pkg-config = pkgs.pkg-config;
+          protobuf = pythonPackages.protobuf4;
+          pythonOlder = pythonPackages.pythonOlder;
+          setuptools = pythonPackages.setuptools;
+          zlib = pkgs.zlib;
+        };
         zran = import ./pkgs/zran.nix {
           stdenv = pkgs.stdenv;
           fetchFromGitHub = pkgs.fetchFromGitHub;
@@ -36,9 +50,9 @@
             buildPythonPackage = pythonPackages.buildPythonPackage;
             fetchPypi = pythonPackages.fetchPypi;
             setuptools = pythonPackages.setuptools;
-            grpcio = pythonPackages.grpcio;
+            inherit grpcio;
             numpy = pythonPackages.numpy;
-            protobuf = pythonPackages.protobuf;
+            protobuf = pythonPackages.protobuf4;
             packaging = pythonPackages.packaging;
             pyrfc3339 = pythonPackages.pyrfc3339;
             version = "6.2.1";
@@ -69,6 +83,7 @@
             rustPlatform = pkgs.rustPlatform;
           };
         };
+
         pythonEnv = python.withPackages
           (ps: [ packages.mappy
                  packages.minknow_api
@@ -79,11 +94,13 @@
                  pythonPackages.watchdog
                  pythonPackages.pydantic
                  pythonPackages.pydantic-settings
+                 pythonPackages.pandas
+                 pythonPackages.dash
                ]);
       in
         {
           devShell = pkgs.mkShell {
-            nativeBuildInputs = [ pythonEnv ];
+            buildInputs = [ pythonEnv ];
           };
         });
 }

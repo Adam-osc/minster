@@ -7,14 +7,14 @@
 
 buildPythonPackage rec {
   pname = "toy-ibf";
-  version = "0e1832fd351891677ab97a26a69c7b5cbcb8cf77";
+  version = "bb6088dd3cc71c4522627813052a462629c1fa51";
   pyproject = true;
 
   src = fetchFromGitHub {
     owner = "Adam-osc";
     repo = pname;
     rev = version;
-    hash = "sha256-5hgzjD46UKdq1BARQ5Reqhteny/6xdEeOBl+cvydsUA=";
+    hash = "sha256-WXW2PwR2KhasYGjKftv0uOvvtWDC6pWAG2+zfrKA8iA=";
   };
 
   cargoDeps = rustPlatform.fetchCargoTarball {
