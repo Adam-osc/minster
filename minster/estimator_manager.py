@@ -117,12 +117,12 @@ class EstimatorManager:
 
         distance = 0.5 * np.sum(np.abs(np.subtract(ordered_observed_proportions, ordered_target_proportions)))
         distance = min(distance, 1 - 1e-5)
-        # alpha = max(
-        #     1.0,
-        #     -1 * log(1 - distance) * self._beta
-        # )
+        alpha = max(
+            1.0,
+            -1 * log(1 - distance) * self._beta
+        )
 
-        return float(acceptance_rate) # ** alpha
+        return float(acceptance_rate) ** alpha
 
     def update_estimated_received_bases(self, strata_id: str) -> None:
         self._estimator_records[strata_id].update_estimated_received_bases()
