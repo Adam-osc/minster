@@ -60,7 +60,7 @@ class ReferenceSequence(BaseModel):
 
 class ReadProcessorSettings(BaseModel):
     batch_size: PositiveInt
-    read_processor: PositiveInt
+    target_base_count: PositiveInt
 
 class ExperimentSettings(BaseSettings):
     metrics_store: Path

@@ -32,7 +32,8 @@ def create_app(db_path):
             id='basecalled-table',
             columns=[
                 {'name': 'Final Class', 'id': 'final_class'},
-                {'name': 'Number of Bases', 'id': 'total_bases'},
+                {'name': 'Total Bases', 'id': 'total_bases'},
+                {'name': 'Number of Reads', 'id': 'read_count'}
             ],
             style_cell={'textAlign': 'center'},
             style_header={'fontWeight': 'bold'},
@@ -41,6 +42,15 @@ def create_app(db_path):
         html.H2("Real-Time Read Fragments"),
         dash_table.DataTable(
             id='classified-table',
+            columns=[
+                {'name': 'Inferred Class', 'id': 'inferred_class'},
+                {'name': 'Count', 'id': 'count'},
+            ],
+            style_cell={'textAlign': 'center'},
+            style_header={'fontWeight': 'bold'},
+        ),
+        dash_table.DataTable(
+            id='classified-total-table',
             columns=[
                 {'name': 'Status', 'id': 'status'},
                 {'name': 'Count', 'id': 'count'},
@@ -54,10 +64,13 @@ def create_app(db_path):
         Output('area-chart','figure'),
         Output('basecalled-table','data'),
         Output('classified-table','data'),
+        Output('classified-total-table', 'data'),
         Input('interval-component','n_intervals')
     )
     def update_dashboard(n_intervals: int):
         df_basecalled, df_classified = load_data(db_path)
+        df_classified['timestamp'] = pd.to_datetime(df_classified['timestamp'], format='mixed')
+        df_basecalled['timestamp'] = pd.to_datetime(df_basecalled['timestamp'], format='mixed')
 
         df_filtered = df_basecalled[df_basecalled['final_class'].notna()]
         pivot = df_filtered.pivot_table(
@@ -88,22 +101,41 @@ def create_app(db_path):
             }
         }
 
-        number_of_bases = (
-            df_basecalled
-                .assign(final_class=df_basecalled["final_class"].fillna("unclassified"))
-                .groupby("final_class", as_index=False)
-                .agg(total_bases=("length", "sum"))
+        df_basecalled_filled = df_basecalled.assign(final_class=df_basecalled["final_class"].fillna("unclassified"))
+        final_class_stats = (
+            df_basecalled_filled
+            .groupby("final_class", as_index=False)
+            .agg(
+                total_bases=("length", "sum"),
+                read_count=("read_id", "count")
+            )
         )
-        base_data = number_of_bases.to_dict('records')
+        base_data = final_class_stats.to_dict("records")
 
-        classified = int(df_classified['inferred_class'].notna().sum())
-        unclassified = int(df_classified['inferred_class'].isna().sum())
-        class_data = [
+        df_latest = (
+            df_classified
+            .sort_values(by=['read_id', 'timestamp'])
+            .groupby('read_id', as_index=False)
+            .last()
+        )
+
+        df_final_classified = df_latest[df_latest['inferred_class'].notna()]
+        class_breakdown = (
+            df_final_classified
+            .groupby("inferred_class", as_index=False)
+            .size()
+            .rename(columns={"size": "count"})
+            .to_dict("records")
+        )
+
+        classified = int(df_latest['inferred_class'].notna().sum())
+        unclassified = int(df_latest['inferred_class'].isna().sum())
+        status_breakdown = [
             {'status': 'Classified', 'count': classified},
             {'status': 'Unclassified', 'count': unclassified},
         ]
 
-        return area_fig, base_data, class_data
+        return area_fig, base_data, class_breakdown, status_breakdown
 
     return app
 

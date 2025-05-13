@@ -1,9 +1,11 @@
 import threading
+from collections import defaultdict
 from collections import deque
 from typing import Optional
 
 from minster.classifiers.classifier import Classifier
 from minster.config import ReadProcessorSettings
+from minster.fragment_collection import FragmentCollection
 from minster.nanopore_read import NanoporeRead
 from minster.strata_balancer import StrataBalancer
 
@@ -13,6 +15,7 @@ class ReadProcessor:
             self,
             classifier: Classifier,
             strata_balancer: StrataBalancer,
+            fragment_collection: FragmentCollection,
             read_processor_settings: ReadProcessorSettings
     ):
         self._batch_size: int = read_processor_settings.batch_size
@@ -21,10 +24,10 @@ class ReadProcessor:
         self._base_count: int = 0
         self._queue: deque[Optional[NanoporeRead]] = deque()
         self._condition: threading.Condition = threading.Condition()
+        self._fragment_collection: FragmentCollection = fragment_collection
         self._strata_balancer: StrataBalancer = strata_balancer
         self._classifier: Classifier = classifier
-        for strata_id in self._strata_balancer.get_all_strata():
-            self._classifier.activate_sequences(strata_id)
+        self._classifiers_activated: bool = False
 
     def quit(self) -> None:
         with self._condition:
@@ -32,6 +35,9 @@ class ReadProcessor:
             self._condition.notify()
 
     def add_read(self, read: NanoporeRead) -> None:
+        if self._fragment_collection.was_ejected(read.get_read_id()):
+            return
+
         with self._condition:
             self._queue.append(read)
 
@@ -62,4 +68,11 @@ class ReadProcessor:
 
             if breaking:
                 break
+
             self._strata_balancer.update_alignments(batch)
+
+            if self._classifiers_activated or not self._strata_balancer.are_all_warmed_up():
+                continue
+            for strata_id in self._strata_balancer.get_all_strata():
+                self._classifier.activate_sequences(strata_id)
+            self._classifiers_activated = True

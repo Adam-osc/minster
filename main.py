@@ -22,6 +22,7 @@ from minster.classifiers.classifier_factory import ClassifierFactory
 from minster.config import ExperimentSettings, SequencerSettings
 from minster.experiment_manager import ExperimentManager
 from minster.fastq_handler import FastqHandler
+from minster.fragment_collection import FragmentCollection
 from minster.read_processor import ReadProcessor
 from minster.read_until_regulator import ReadUntilRegulator
 from minster.strata_balancer import StrataBalancer
@@ -162,12 +163,14 @@ def main() -> None:
         protocol_service: ProtocolService = connection.protocol
         sample_rate = float(connection.device.get_sample_rate().sample_rate)
 
+    fragment_collection = FragmentCollection()
     read_until_settings = experiment_settings.read_until
     read_until_regulator = ReadUntilRegulator(
         read_until_settings,
         sample_rate,
         classifier,
         strata_balancer,
+        fragment_collection,
         command_queue
     )
     read_until_regulator.run()
@@ -176,6 +179,7 @@ def main() -> None:
     read_processor = ReadProcessor(
         classifier,
         strata_balancer,
+        fragment_collection,
         read_processor_settings
     )
     observer = Observer()

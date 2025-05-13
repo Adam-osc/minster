@@ -12,28 +12,30 @@ class MetricsStore:
         CREATE TABLE IF NOT EXISTS basecalled_reads (
           read_id      TEXT,
           final_class  TEXT,
-          length       INTEGER
+          length       INTEGER,
+          timestamp    TEXT
         )
         """)
         self._conn.execute("""
         CREATE TABLE IF NOT EXISTS classified_reads (
           read_id        TEXT,
-          inferred_class TEXT
+          inferred_class TEXT,
+          timestamp    TEXT
         )
         """)
         self._conn.commit()
 
-    def record_basecalled_reads(self, read_id: str, final_class: str, length: int):
+    def record_basecalled_reads(self, read_id: str, final_class: str, length: int, timestamp: str):
         self._conn.execute(
-            "INSERT INTO basecalled_reads (read_id, final_class, length) VALUES (?, ?, ?)",
-            (read_id, final_class, length)
+            "INSERT INTO basecalled_reads (read_id, final_class, length, timestamp) VALUES (?, ?, ?, ?)",
+            (read_id, final_class, length, timestamp)
         )
         self._conn.commit()
 
-    def record_classified_reads(self, read_id: str, inferred_class: Optional[str]):
+    def record_classified_reads(self, read_id: str, inferred_class: Optional[str], timestamp: str):
         self._conn.execute(
-            "INSERT INTO classified_reads (read_id, inferred_class) VALUES (?, ?)",
-            (read_id, inferred_class)
+            "INSERT INTO classified_reads (read_id, inferred_class, timestamp) VALUES (?, ?, ?)",
+            (read_id, inferred_class, timestamp)
         )
         self._conn.commit()
 

@@ -2,7 +2,7 @@ metrics_store = "/Users/adam/thesis/realtime-seq/test-data/metrics.db"
 minimum_mapped_bases = 1_000_000
 minimum_reads_for_parameter_estimation = 30
 minimum_fragments_for_ratio_estimation = 30
-thinning_accelerator = 8
+thinning_accelerator = 1
 
 [read_processor]
 batch_size = 10

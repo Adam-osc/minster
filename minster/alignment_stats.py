@@ -21,7 +21,9 @@ class AlignmentStats:
         return self._read_count
 
     def get_mean_coverage(self) -> float:
+        assert len(self._sequences) > 0
         return round(self._aligned_length / len(self._sequences), 2)
 
     def get_mean_read_length(self) -> float:
+        assert self._read_count > 0
         return round(self._aligned_length / self._read_count, 2)

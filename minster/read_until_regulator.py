@@ -8,6 +8,7 @@ from metrics.command_processor import MetricCommand, RecordClassifiedReadCommand
 from minster.classifiers.classifier import Classifier
 from minster.config import ReadUntilSettings
 from minster.dorado_wrapper import DoradoWrapper, ReadChunk, ReadChunkWrap
+from minster.fragment_collection import FragmentCollection
 from minster.strata_balancer import StrataBalancer
 from read_until import ReadUntilClient, AccumulatingCache
 
@@ -19,6 +20,7 @@ class ReadUntilRegulator:
             sampling_rate: float,
             classifier: Classifier,
             strata_balancer: StrataBalancer,
+            fragment_collection: FragmentCollection,
             command_queue: Queue[Optional[MetricCommand]]
     ):
         print("Initializing the Read Until Client")
@@ -37,6 +39,7 @@ class ReadUntilRegulator:
         self._depletion_chunks: int = read_until_settings.depletion_chunks
         self._throttle: float = read_until_settings.throttle
         self._classifier: Classifier = classifier
+        self._fragment_collection: FragmentCollection = fragment_collection
         self._strata_balancer: StrataBalancer = strata_balancer
         self._command_queue: Queue[Optional[MetricCommand]] = command_queue
 
@@ -72,6 +75,7 @@ class ReadUntilRegulator:
                 if matched_cat_id is not None:
                     self._strata_balancer.update_estimated_received_bases(matched_cat_id)
                     if self._strata_balancer.thin_out_p(matched_cat_id):
+                        self._fragment_collection.add_ejected(read_chunk.read_id)
                         unblock_batch.append(read_chunk)
                     else:
                         stop_receiving_batch.append(read_chunk)

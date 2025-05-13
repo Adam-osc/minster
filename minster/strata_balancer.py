@@ -5,10 +5,10 @@ from typing import Iterable, Optional
 
 import mappy as mp
 
-from metrics.command_processor import MetricCommand, RecordBasecalledReadCommand
+from metrics.command_processor import MetricCommand, RecordBasecalledReadCommand, PrintMessageCommand
 from minster.alignment_stats import AlignmentStats
-from minster.estimator_manager import EstimatorManager
 from minster.config import ReferenceSequence
+from minster.estimator_manager import EstimatorManager
 from minster.nanopore_read import NanoporeRead
 
 
@@ -74,36 +74,53 @@ class StrataBalancer:
         self._estimator_manager: EstimatorManager = EstimatorManager(
             reference_sequences,
             minimum_fragments_for_ratio_estimation,
-            thinning_accelerator
+            thinning_accelerator,
+            command_queue
         )
         self._minimum_mapped_bases: int = minimum_mapped_bases
         self._minimum_reads_for_parameter_estimation: int = minimum_reads_for_parameter_estimation
+        self._all_warmed_up: bool = False
         self._thr_buf: mp.ThreadBuffer = mp.ThreadBuffer()
         self._command_queue: Queue[Optional[MetricCommand]] = command_queue
 
     def get_all_strata(self) -> Iterable[str]:
         return self._strata_manager.get_all_strata()
 
-    def are_all_warmed_up_p(self) -> bool:
+    def is_warmed_up(self, strata_id: str) -> bool:
         # Decided to not keep the alignment state frozen during this entire method
-        return all(
-            self._strata_manager.get_aligned_length(strata_id) > self._minimum_mapped_bases
-            for strata_id in self._strata_manager.get_all_strata()
-        ) and all(
-            self._strata_manager.get_aligned_read_count(strata_id) >= self._minimum_reads_for_parameter_estimation
+        return (
+                self._strata_manager.get_aligned_length(strata_id) >= self._minimum_mapped_bases and
+                self._strata_manager.get_aligned_read_count(strata_id) >= self._minimum_reads_for_parameter_estimation
+        )
+
+    def are_all_warmed_up(self) -> bool:
+        # Decided to not keep the alignment state frozen during this entire method
+        if self._all_warmed_up:
+            return True
+
+        all_warmed_up = all(
+            self.is_warmed_up(strata_id)
             for strata_id in self._strata_manager.get_all_strata()
         )
+        if all_warmed_up:
+            self._all_warmed_up = True
+        self._command_queue.put(PrintMessageCommand(f"Warm up stage of all strata: {all_warmed_up}"))
+        return all_warmed_up
 
     def thin_out_p(self, strata_id: str) -> bool:
         # Decided to not keep the alignment state frozen during this entire method
-        if not self.are_all_warmed_up_p() or not self._estimator_manager.are_all_warmed_up():
+        if not self.are_all_warmed_up() or not self._estimator_manager.are_all_warmed_up():
             return False
+
+        self._command_queue.put(
+            PrintMessageCommand(f"Thinning a read from {strata_id} with probability {self._estimator_manager.get_acceptance_rate(strata_id)}.")
+        )
 
         draw = random.random()
         return draw > self._estimator_manager.get_acceptance_rate(strata_id)
 
     def update_estimated_received_bases(self, category: str) -> None:
-        if not self.are_all_warmed_up_p():
+        if not self.are_all_warmed_up():
             return
 
         self._estimator_manager.update_estimated_received_bases(category)

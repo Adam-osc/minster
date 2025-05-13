@@ -9,7 +9,7 @@ from pybasecall_client_lib.pyclient import PyBasecallClient
 from watchdog.events import FileSystemEventHandler, DirCreatedEvent, FileCreatedEvent
 from watchdog.observers import Observer
 
-WATCH_DIR = "/private/tmp/icarust-test/test_2_plants/test/20250503_1557_XIII_test_cell_2fb02ed05"
+WATCH_DIR = "/path/to/current/icarust/simulation/directory"
 FASTQ_PASS_DIR = WATCH_DIR + "/fastq_pass"
 PROCESSED_DIR = WATCH_DIR + "/processed"
 Path(FASTQ_PASS_DIR).mkdir(exist_ok=True)
