@@ -1,6 +1,6 @@
 # Minster
 - x86_64-linux, aarch64-linux, x86_64-darwin, aarch64-darwin are the only supported architectures.
-- The program was tested only on aarch64-darwin.
+- The program was tested only on aarch64-linux (refer to [jetson-nanopore-nixos-config](https://github.com/Adam-osc/jetson-nanopore-nixos-config)) and aarch64-darwin.
 
 **Nix Installation**  
 - Ensure that [Nix](https://nixos.org/download.html) is installed on your system. 
@@ -12,7 +12,7 @@
 
 **Version Compatibility**
 - The versions of minknow-api and ont-pybasecall-client-lib python packages supplied in this flake were tested to work with MinKNOW Core version 6.2.8 and Dorado server version 7.6.8.
-- When running a different of Minknow Core or Dorado server modify the version of minknow-api and ont-pybasecall-client-lib in [flake.nix](./flake.nix). Ensure that the requested versions are provided by the relevant nix files. 
+- When running a different version of Minknow Core or Dorado server modify the version of minknow-api and ont-pybasecall-client-lib in [flake.nix](./flake.nix). Ensure that the requested versions are provided by the relevant nix files. 
 
 ## Running the program
 1. Enter a development shell with the necessary python dependencies using:

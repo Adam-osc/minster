@@ -15,7 +15,7 @@
         python = pkgs.python312;
         pythonPackages = pkgs.python312Packages;
 
-        grpcio = import ./pkgs/grpcio.nix {
+        grpcio = import ./packages/grpcio.nix {
           lib = pkgs.lib;
           stdenv = pkgs.stdenv;
           buildPythonPackage = pythonPackages.buildPythonPackage;
@@ -29,7 +29,7 @@
           setuptools = pythonPackages.setuptools;
           zlib = pkgs.zlib;
         };
-        zran = import ./pkgs/zran.nix {
+        zran = import ./packages/zran.nix {
           stdenv = pkgs.stdenv;
           fetchFromGitHub = pkgs.fetchFromGitHub;
           pkg-config = pkgs.pkg-config;
@@ -38,7 +38,7 @@
         };
 
         packages = {
-          mappy = import ./pkgs/mappy.nix {
+          mappy = import ./packages/mappy.nix {
             buildPythonPackage = pythonPackages.buildPythonPackage;
             fetchPypi = pythonPackages.fetchPypi;
             setuptools = pythonPackages.setuptools;
@@ -46,7 +46,7 @@
             cython = pythonPackages.cython;
             zlib = pkgs.zlib;
           };
-          minknow_api = import ./pkgs/minknow-api.nix {
+          minknow_api = import ./packages/minknow-api.nix {
             buildPythonPackage = pythonPackages.buildPythonPackage;
             fetchPypi = pythonPackages.fetchPypi;
             setuptools = pythonPackages.setuptools;
@@ -57,7 +57,7 @@
             pyrfc3339 = pythonPackages.pyrfc3339;
             version = "6.2.1";
           };
-          ont_pybasecall_client_lib = import ./pkgs/ont-pybasecall-client-lib.nix {
+          ont_pybasecall_client_lib = import ./packages/ont-pybasecall-client-lib.nix {
             stdenv = pkgs.stdenv;
             dynLibsPatcher = if pkgs.stdenv.hostPlatform.isLinux then pkgs.autoPatchelfHook else pkgs.fixDarwinDylibNames;
             buildPythonPackage = pythonPackages.buildPythonPackage;
@@ -66,7 +66,7 @@
             pythonVersion = python.pythonVersion;
             version = "7.6.8";
           };
-          pyfastx = import ./pkgs/pyfastx.nix {
+          pyfastx = import ./packages/pyfastx.nix {
             buildPythonPackage = pythonPackages.buildPythonPackage;
             fetchPypi = pythonPackages.fetchPypi;
             setuptools = pythonPackages.setuptools;
@@ -75,7 +75,7 @@
             inherit zran;
             sqlite = pkgs.sqlite;
           };
-          interleaved_bloom_filter = import ./pkgs/toy-ibf.nix {
+          interleaved_bloom_filter = import ./packages/toy-ibf.nix {
             stdenv = pkgs.stdenv;
             darwin = if pkgs.stdenv.hostPlatform.isDarwin then pkgs.darwin else null;
             fetchFromGitHub = pkgs.fetchFromGitHub;
@@ -95,7 +95,7 @@
                  pythonPackages.pydantic
                  pythonPackages.pydantic-settings
                  pythonPackages.pandas
-                 pythonPackages.dash
+                 # pythonPackages.dash
                ]);
       in
         {
