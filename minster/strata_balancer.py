@@ -27,6 +27,11 @@ class StrataRecord:
 
 @dataclass
 class StrataManager:
+    """
+    This class retrieves and updates the number of aligned reads and bases. These
+    metrics are necessary to determine whether the system is ready to start ejecting
+    reads.
+    """
     _records: dict[str, StrataRecord] = field(default_factory=dict)
 
     def insert_record(
@@ -55,6 +60,9 @@ class StrataManager:
         return self._records.keys()
 
 class StrataBalancer:
+    """
+    Determines whether a read originating from a genome should be ejected or retained.
+    """
     def __init__(
             self,
             reference_sequences: list[ReferenceSequence],

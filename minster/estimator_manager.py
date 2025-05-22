@@ -14,6 +14,11 @@ from minster.nanopore_read import NanoporeRead
 
 @dataclass
 class EstimatorRecord:
+    """
+    This class estimates the number of bases that would have been assigned to a genome
+    if no reads had been ejected. It assumes that Nanopore read lengths are distributed
+    according to a log-normal distribution.
+    """
     _strata_id: str
     _minimum_fragments_for_ratio_estimation: int
     _command_queue: Queue[Optional[MetricCommand]]
@@ -61,6 +66,11 @@ class EstimatorRecord:
 
 
 class EstimatorManager:
+    """
+    Uses the estimator of the number of bases (see EstimatorRecord) to determine
+    the probability with which reads classified as originating from a genome (stratum)
+    are ejected.
+    """
     def __init__(
             self,
             reference_sequences: list[ReferenceSequence],
@@ -96,7 +106,7 @@ class EstimatorManager:
         target_whole = np.sum(ordered_target_ratios)
         ordered_target_proportions = ordered_target_ratios / target_whole
 
-        # p_raw / r
+        # b_hat / r
         representation = (
                 (ordered_estimated_received_bases * target_whole) /
                 (ordered_target_ratios * total_estimated_received_bases)
@@ -105,7 +115,7 @@ class EstimatorManager:
 
         target_part = self._target_ratios[strata_id]
         estimated_received_part = self._estimator_records[strata_id].get_estimated_bases_received()
-        # min_i(p_raw,i / r_i) * (r / p_raw)
+        # min_i(b_hat,i / r_i) * (r / b_hat)
         acceptance_rate = (
                 (target_part * ordered_estimated_received_bases[min_index]) /
                 (ordered_target_ratios[min_index] * estimated_received_part)

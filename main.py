@@ -6,7 +6,7 @@ import time
 from concurrent.futures import Future
 from pathlib import Path
 from queue import Queue
-from typing import Optional
+from typing import Union, Optional
 
 import mappy as mp
 from minknow_api import Connection
@@ -54,7 +54,7 @@ def get_active_connection(sequencer_settings: SequencerSettings) -> Optional[Con
 
 
 def clean_threads(
-        command_queue: Queue[Optional[CommandProcessor]],
+        command_queue: Queue[Optional[MetricCommand]],
         cmd_processor_thread: threading.Thread,
         observer: Observer,
         read_processor: ReadProcessor,
@@ -74,7 +74,7 @@ def clean_threads(
 
 
 def start_basecalled_monitoring(
-        protocol_service: ProtocolService,
+        protocol_service: Union[ProtocolService, FakeProtocolService],
         observer: Observer,
         read_processor: ReadProcessor,
 ) -> None:
@@ -148,7 +148,7 @@ def main() -> None:
         command_queue
     )
 
-    protocol_service: FakeProtocolService | ProtocolService
+    protocol_service: Union[FakeProtocolService, ProtocolService]
     sample_rate: float
     if args.simulated_dir is not None:
         protocol_service = FakeProtocolService(args.simulated_dir)
@@ -160,7 +160,7 @@ def main() -> None:
             print("Could not acquire the running protocol.")
             sys.exit(1)
         connection: Connection = maybe_connection
-        protocol_service: ProtocolService = connection.protocol
+        protocol_service = connection.protocol
         sample_rate = float(connection.device.get_sample_rate().sample_rate)
 
     fragment_collection = FragmentCollection()

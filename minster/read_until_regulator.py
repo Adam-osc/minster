@@ -14,6 +14,10 @@ from read_until import ReadUntilClient, AccumulatingCache
 
 
 class ReadUntilRegulator:
+    """
+    This class interfaces with a basecaller, a classifier, and a balancer to eject
+    the reads originating from overrepresented genomes (strata).
+    """
     def __init__(
             self,
             read_until_settings: ReadUntilSettings,

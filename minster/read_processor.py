@@ -11,6 +11,11 @@ from minster.strata_balancer import StrataBalancer
 
 
 class ReadProcessor:
+    """
+    This class receives basecalled reads from an ExperimentManager and,
+    after classification it updates the sample mean and variance for each
+    genome.
+    """
     def __init__(
             self,
             classifier: Classifier,

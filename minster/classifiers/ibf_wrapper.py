@@ -10,6 +10,9 @@ from minster.config import IBFSettings
 
 
 class IBFWrapper(Classifier):
+    """
+    A classifier that uses interleaved bloom filters implemented in Rust.
+    """
     def __init__(self, ibf_settings: IBFSettings, reference_files: list[str]):
         reference_containers = [(rf, pyfastx.Fasta(rf)) for rf in reference_files]
 

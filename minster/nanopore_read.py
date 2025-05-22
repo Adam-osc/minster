@@ -12,6 +12,9 @@ type DescriptionDict = dict[str, str]
 
 @dataclass
 class NanoporeRead:
+    """
+    A class that represents a basecalled Nanopore read.
+    """
     _barcode_name: Optional[str]
     _channel: Optional[int]
     _fastq_file_path: str

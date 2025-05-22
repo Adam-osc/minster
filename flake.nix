@@ -82,6 +82,7 @@
             buildPythonPackage = pythonPackages.buildPythonPackage;
             rustPlatform = pkgs.rustPlatform;
           };
+          kingfisher = pkgs.callPackage ./packages/kingfisher-wrapped.nix;
         };
 
         pythonEnv = python.withPackages
@@ -95,7 +96,8 @@
                  pythonPackages.pydantic
                  pythonPackages.pydantic-settings
                  pythonPackages.pandas
-                 # pythonPackages.dash
+                 pythonPackages.dash
+                 packages.kingfisher
                ]);
       in
         {

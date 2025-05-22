@@ -30,6 +30,9 @@ class ReadChunkWrap:
 
 
 class DoradoWrapper:
+    """
+    A class that basecalls the accumulated read fragments.
+    """
     def __init__(
             self,
             basecaller_settings: BasecallerSettings,

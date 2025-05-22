@@ -24,6 +24,9 @@ class AlignerRecord:
         self._active = not self.active
 
 class MappyWrapper(Classifier):
+    """
+    A classifier that uses Mappy, a python interface to Minimap2.
+    """
     def __init__(self, aligners: dict[str, mp.Aligner]):
         self._thr_buf: mp.ThreadBuffer = mp.ThreadBuffer()
         self._all_aligners: dict[str, AlignerRecord] = {key:AlignerRecord(aligner) for (key, aligner) in aligners.items()}

@@ -4,6 +4,12 @@ from minster.nanopore_read import NanoporeRead
 
 
 class AlignmentStats:
+    """
+    Stores the number of basecalled reads that were inferred to originate from
+    a genome using alignment, their total length in bases, and other statistics
+    derived using the mentioned two.
+    """
+
     def __init__(self, sequence_path: str):
         self._sequence_path: str = sequence_path
         self._sequences: pyfastx.Fasta = pyfastx.Fasta(sequence_path)

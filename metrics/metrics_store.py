@@ -25,7 +25,7 @@ class MetricsStore:
         """)
         self._conn.commit()
 
-    def record_basecalled_reads(self, read_id: str, final_class: str, length: int, timestamp: str):
+    def record_basecalled_reads(self, read_id: str, final_class: Optional[str], length: int, timestamp: str):
         self._conn.execute(
             "INSERT INTO basecalled_reads (read_id, final_class, length, timestamp) VALUES (?, ?, ?, ?)",
             (read_id, final_class, length, timestamp)

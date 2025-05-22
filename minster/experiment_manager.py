@@ -1,4 +1,5 @@
 import gzip
+from typing import Union
 
 import pyfastx
 from minknow_api.protocol_service import ProtocolService
@@ -9,12 +10,15 @@ from simulation.fake_protocol_service import FakeProtocolService
 
 
 class ExperimentManager:
+    """
+    A class to enable FastqHandlers to interact with ReadProcessors.
+    """
     def __init__(
             self,
-            protocol: FakeProtocolService | ProtocolService,
+            protocol: Union[FakeProtocolService, ProtocolService],
             read_processor: ReadProcessor,
     ):
-        self._protocol: FakeProtocolService | ProtocolService = protocol
+        self._protocol: Union[FakeProtocolService, ProtocolService] = protocol
         self._read_processor: ReadProcessor = read_processor
 
     @staticmethod
