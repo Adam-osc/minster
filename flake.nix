@@ -82,7 +82,15 @@
             buildPythonPackage = pythonPackages.buildPythonPackage;
             rustPlatform = pkgs.rustPlatform;
           };
-          kingfisher = pkgs.callPackage ./packages/kingfisher-wrapped.nix;
+          kingfisher = import ./packages/kingfisher-wrapped.nix {
+            fetchurl = pkgs.fetchurl;
+            stdenv = pkgs.stdenv;
+            dpkg = pkgs.dpkg;
+            lib = pkgs.lib;
+            appimageTools = pkgs.appimageTools;
+            buildFHSEnv = pkgs.buildFHSEnv;
+            writeShellScript = pkgs.writeShellScript;
+          };
         };
 
         pythonEnv = python.withPackages
@@ -97,12 +105,14 @@
                  pythonPackages.pydantic-settings
                  pythonPackages.pandas
                  pythonPackages.dash
-                 packages.kingfisher
                ]);
       in
         {
           devShell = pkgs.mkShell {
-            buildInputs = [ pythonEnv ];
+            buildInputs = [
+              pythonEnv
+              packages.kingfisher
+            ];
           };
         });
 }
