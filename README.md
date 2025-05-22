@@ -8,7 +8,8 @@
 
 **Runtime dependencies**  
 - The MinKNOW and Dorado server must be up and running.
-- The current user must have read and write access to the Dorado server socket, and read and execute access to the target experiment's data directory.
+- The current user must have read and write access to the Dorado server socket, and read-write-execute access to the target experiment's data directory.
+  - Read access to the experiment's data directory is required because pyfastx writes its index files in the same location as the FASTQ file being read.
 
 **Version Compatibility**
 - The versions of minknow-api and ont-pybasecall-client-lib python packages supplied in this flake were tested to work with MinKNOW Core version 6.2.8 and Dorado server version 7.6.8.
@@ -18,6 +19,11 @@
 1. Enter a development shell with the necessary python dependencies using:
 ```bash
 nix develop
+```
+- The development shell also includes the MinKNOW frontend Kingfisher; the packaged version can be only installed on x86_64-linux and aarch64-linux.
+- It can be launched by running:
+```bash
+ont-kingfisher
 ```
 
 2. Inside the development shell, the program can be launched with:
